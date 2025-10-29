@@ -1,0 +1,358 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "basics": [
+      {
+        "name": "deploymentName",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Deployment Name",
+        "defaultValue": "monitor-hub",
+        "toolTip": "Nome univoco per questo deployment",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-z0-9-]{3,24}$",
+          "validationMessage": "Solo lettere minuscole, numeri e trattini. Lunghezza 3-24 caratteri."
+        }
+      }
+    ],
+    "steps": [
+      {
+        "name": "infrastructure",
+        "label": "Infrastructure Settings",
+        "elements": [
+          {
+            "name": "resourceGroupSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Resource Group Configuration",
+            "elements": [
+              {
+                "name": "useExistingRG",
+                "type": "Microsoft.Common.OptionsGroup",
+                "label": "Resource Group",
+                "defaultValue": "Create new",
+                "toolTip": "Crea un nuovo Resource Group o usa uno esistente",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Create new",
+                      "value": "new"
+                    },
+                    {
+                      "label": "Use existing",
+                      "value": "existing"
+                    }
+                  ],
+                  "required": true
+                },
+                "visible": true
+              },
+              {
+                "name": "existingRG",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select Resource Group",
+                "resourceType": "Microsoft.Resources/resourceGroups",
+                "options": {
+                  "filter": {
+                    "subscription": "onBasics"
+                  }
+                },
+                "visible": "[equals(steps('infrastructure').resourceGroupSection.useExistingRG, 'existing')]"
+              }
+            ]
+          },
+          {
+            "name": "logAnalyticsSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Log Analytics Workspace",
+            "elements": [
+              {
+                "name": "useExistingLAW",
+                "type": "Microsoft.Common.OptionsGroup",
+                "label": "Log Analytics Workspace",
+                "defaultValue": "Create new",
+                "toolTip": "Crea un nuovo workspace o usa uno esistente",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Create new",
+                      "value": "new"
+                    },
+                    {
+                      "label": "Use existing",
+                      "value": "existing"
+                    }
+                  ],
+                  "required": true
+                }
+              },
+              {
+                "name": "existingLAW",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select Workspace",
+                "resourceType": "Microsoft.OperationalInsights/workspaces",
+                "visible": "[equals(steps('infrastructure').logAnalyticsSection.useExistingLAW, 'existing')]"
+              },
+              {
+                "name": "newLAWName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Workspace Name",
+                "defaultValue": "[concat('law-', basics('deploymentName'))]",
+                "visible": "[equals(steps('infrastructure').logAnalyticsSection.useExistingLAW, 'new')]",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{4,63}$",
+                  "validationMessage": "4-63 caratteri alfanumerici e trattini"
+                }
+              },
+              {
+                "name": "retentionDays",
+                "type": "Microsoft.Common.Slider",
+                "min": 30,
+                "max": 730,
+                "label": "Data Retention (days)",
+                "defaultValue": 90,
+                "showStepMarkers": false,
+                "toolTip": "Giorni di retention dei log",
+                "visible": "[equals(steps('infrastructure').logAnalyticsSection.useExistingLAW, 'new')]"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "monitoring",
+        "label": "Monitoring Configuration",
+        "elements": [
+          {
+            "name": "vmMonitoring",
+            "type": "Microsoft.Common.Section",
+            "label": "Virtual Machine Monitoring",
+            "elements": [
+              {
+                "name": "monitorExistingVMs",
+                "type": "Microsoft.Common.OptionsGroup",
+                "label": "Monitor Existing VMs",
+                "defaultValue": "Yes",
+                "toolTip": "Configura il monitoring per VM esistenti nella subscription",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Yes",
+                      "value": "true"
+                    },
+                    {
+                      "label": "No",
+                      "value": "false"
+                    }
+                  ],
+                  "required": true
+                }
+              },
+              {
+                "name": "vmSelector",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select VMs to Monitor",
+                "resourceType": "Microsoft.Compute/virtualMachines",
+                "options": {
+                  "filter": {
+                    "subscription": "onBasics"
+                  }
+                },
+                "visible": "[equals(steps('monitoring').vmMonitoring.monitorExistingVMs, 'true')]",
+                "constraints": {
+                  "required": false
+                }
+              },
+              {
+                "name": "autoEnrollNewVMs",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Auto-enroll new VMs",
+                "toolTip": "Abilita automaticamente il monitoring per nuove VM create (tramite Azure Policy)",
+                "defaultValue": true
+              }
+            ]
+          },
+          {
+            "name": "metricsSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Metrics & Alerts Configuration",
+            "elements": [
+              {
+                "name": "metricsToCollect",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Performance Counters",
+                "defaultValue": true
+              },
+              {
+                "name": "enableCPUAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "CPU Usage Alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "cpuThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 50,
+                "max": 95,
+                "label": "CPU Alert Threshold (%)",
+                "defaultValue": 85,
+                "visible": "[steps('monitoring').metricsSection.enableCPUAlerts]"
+              },
+              {
+                "name": "enableMemoryAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Memory Usage Alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "memoryThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 50,
+                "max": 95,
+                "label": "Memory Alert Threshold (%)",
+                "defaultValue": 85,
+                "visible": "[steps('monitoring').metricsSection.enableMemoryAlerts]"
+              },
+              {
+                "name": "enableDiskAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Disk Space Alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "diskThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 70,
+                "max": 95,
+                "label": "Disk Alert Threshold (%)",
+                "defaultValue": 85,
+                "visible": "[steps('monitoring').metricsSection.enableDiskAlerts]"
+              },
+              {
+                "name": "enableHeartbeatAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "VM Heartbeat Alerts",
+                "toolTip": "Alert quando una VM non invia heartbeat (VM down/offline)",
+                "defaultValue": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "notifications",
+        "label": "Notifications",
+        "elements": [
+          {
+            "name": "actionGroupSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Alert Notifications",
+            "elements": [
+              {
+                "name": "createActionGroup",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Create Action Group for Alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "actionGroupName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Action Group Name",
+                "defaultValue": "[concat('ag-', basics('deploymentName'))]",
+                "visible": "[steps('notifications').actionGroupSection.createActionGroup]",
+                "constraints": {
+                  "required": true
+                }
+              },
+              {
+                "name": "emailRecipients",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Email Recipients",
+                "placeholder": "email1@domain.com;email2@domain.com",
+                "toolTip": "Email separati da punto e virgola",
+                "visible": "[steps('notifications').actionGroupSection.createActionGroup]",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(;[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})*$",
+                  "validationMessage": "Inserisci email valide separate da punto e virgola"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "dashboard",
+        "label": "Dashboard",
+        "elements": [
+          {
+            "name": "dashboardSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Monitoring Dashboard",
+            "elements": [
+              {
+                "name": "deployDashboard",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Deploy Nagios-style Dashboard",
+                "toolTip": "Crea un Azure Workbook con vista real-time di tutte le VM monitorate",
+                "defaultValue": true
+              },
+              {
+                "name": "dashboardName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Dashboard Name",
+                "defaultValue": "VM Monitoring Dashboard",
+                "visible": "[steps('dashboard').dashboardSection.deployDashboard]"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "tags",
+        "label": "Tags",
+        "elements": [
+          {
+            "name": "tagsByResource",
+            "type": "Microsoft.Common.TagsByResource",
+            "resources": [
+              "Microsoft.OperationalInsights/workspaces",
+              "Microsoft.Insights/dataCollectionRules",
+              "Microsoft.Insights/metricAlerts",
+              "Microsoft.Insights/scheduledQueryRules",
+              "Microsoft.Insights/actionGroups"
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "location": "[location()]",
+      "deploymentName": "[basics('deploymentName')]",
+      "useExistingResourceGroup": "[equals(steps('infrastructure').resourceGroupSection.useExistingRG, 'existing')]",
+      "existingResourceGroupName": "[if(equals(steps('infrastructure').resourceGroupSection.useExistingRG, 'existing'), steps('infrastructure').resourceGroupSection.existingRG.name, '')]",
+      "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsSection.useExistingLAW, 'existing')]",
+      "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsSection.useExistingLAW, 'existing'), steps('infrastructure').logAnalyticsSection.existingLAW.id, '')]",
+      "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsSection.useExistingLAW, 'new'), steps('infrastructure').logAnalyticsSection.newLAWName, '')]",
+      "retentionInDays": "[steps('infrastructure').logAnalyticsSection.retentionDays]",
+      "monitorExistingVMs": "[bool(steps('monitoring').vmMonitoring.monitorExistingVMs)]",
+      "selectedVMIds": "[if(equals(steps('monitoring').vmMonitoring.monitorExistingVMs, 'true'), steps('monitoring').vmMonitoring.vmSelector.id, '')]",
+      "autoEnrollNewVMs": "[steps('monitoring').vmMonitoring.autoEnrollNewVMs]",
+      "enableCPUAlerts": "[steps('monitoring').metricsSection.enableCPUAlerts]",
+      "cpuThreshold": "[steps('monitoring').metricsSection.cpuThreshold]",
+      "enableMemoryAlerts": "[steps('monitoring').metricsSection.enableMemoryAlerts]",
+      "memoryThreshold": "[steps('monitoring').metricsSection.memoryThreshold]",
+      "enableDiskAlerts": "[steps('monitoring').metricsSection.enableDiskAlerts]",
+      "diskThreshold": "[steps('monitoring').metricsSection.diskThreshold]",
+      "enableHeartbeatAlerts": "[steps('monitoring').metricsSection.enableHeartbeatAlerts]",
+      "createActionGroup": "[steps('notifications').actionGroupSection.createActionGroup]",
+      "actionGroupName": "[steps('notifications').actionGroupSection.actionGroupName]",
+      "emailRecipients": "[steps('notifications').actionGroupSection.emailRecipients]",
+      "deployDashboard": "[steps('dashboard').dashboardSection.deployDashboard]",
+      "dashboardName": "[steps('dashboard').dashboardSection.dashboardName]",
+      "tagsByResource": "[steps('tags').tagsByResource]"
+    }
+  }
+}

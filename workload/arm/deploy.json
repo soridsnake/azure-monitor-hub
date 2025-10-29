@@ -1,0 +1,1454 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.28.1.47646",
+      "templateHash": "6086344394672688852"
+    }
+  },
+  "parameters": {
+    "deploymentName": {
+      "type": "string",
+      "metadata": {
+        "description": "Deployment name"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[deployment().location]",
+      "metadata": {
+        "description": "Azure region for resources"
+      }
+    },
+    "useExistingResourceGroup": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Use existing Resource Group"
+      }
+    },
+    "existingResourceGroupName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Existing Resource Group name"
+      }
+    },
+    "useExistingLogAnalytics": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Use existing Log Analytics Workspace"
+      }
+    },
+    "existingLogAnalyticsWorkspaceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Existing Log Analytics Workspace ID"
+      }
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Log Analytics Workspace name"
+      }
+    },
+    "retentionInDays": {
+      "type": "int",
+      "defaultValue": 90,
+      "metadata": {
+        "description": "Log retention in days"
+      }
+    },
+    "monitorExistingVMs": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Monitor existing VMs"
+      }
+    },
+    "selectedVMIds": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Selected VM IDs to monitor"
+      }
+    },
+    "autoEnrollNewVMs": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Auto-enroll new VMs"
+      }
+    },
+    "enableCPUAlerts": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable CPU alerts"
+      }
+    },
+    "cpuThreshold": {
+      "type": "int",
+      "defaultValue": 85,
+      "metadata": {
+        "description": "CPU threshold percentage"
+      }
+    },
+    "enableMemoryAlerts": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Memory alerts"
+      }
+    },
+    "memoryThreshold": {
+      "type": "int",
+      "defaultValue": 85,
+      "metadata": {
+        "description": "Memory threshold percentage"
+      }
+    },
+    "enableDiskAlerts": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Disk alerts"
+      }
+    },
+    "diskThreshold": {
+      "type": "int",
+      "defaultValue": 85,
+      "metadata": {
+        "description": "Disk threshold percentage"
+      }
+    },
+    "enableHeartbeatAlerts": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Heartbeat alerts"
+      }
+    },
+    "createActionGroup": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Create Action Group"
+      }
+    },
+    "actionGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "Action Group name"
+      }
+    },
+    "emailRecipients": {
+      "type": "string",
+      "metadata": {
+        "description": "Email recipients (semicolon separated)"
+      }
+    },
+    "deployDashboard": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Deploy monitoring dashboard"
+      }
+    },
+    "dashboardName": {
+      "type": "string",
+      "defaultValue": "VM Monitoring Dashboard",
+      "metadata": {
+        "description": "Dashboard name"
+      }
+    },
+    "tagsByResource": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags for resources"
+      }
+    }
+  },
+  "variables": {
+    "resourceGroupName": "[if(parameters('useExistingResourceGroup'), parameters('existingResourceGroupName'), format('rg-{0}', parameters('deploymentName')))]",
+    "tags": {
+      "DeployedBy": "Azure-Monitor-Hub",
+      "Environment": "Production",
+      "ManagedBy": "Bicep"
+    }
+  },
+  "resources": [
+    {
+      "condition": "[not(parameters('useExistingResourceGroup'))]",
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('resourceGroupName')]",
+      "location": "[parameters('location')]",
+      "tags": "[union(variables('tags'), if(contains(parameters('tagsByResource'), 'Microsoft.Resources/resourceGroups'), parameters('tagsByResource')['Microsoft.Resources/resourceGroups'], createObject()))]"
+    },
+    {
+      "condition": "[not(parameters('useExistingLogAnalytics'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-log-analytics",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workspaceName": {
+            "value": "[parameters('logAnalyticsWorkspaceName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "retentionInDays": {
+            "value": "[parameters('retentionInDays')]"
+          },
+          "tags": {
+            "value": "[union(variables('tags'), if(contains(parameters('tagsByResource'), 'Microsoft.OperationalInsights/workspaces'), parameters('tagsByResource')['Microsoft.OperationalInsights/workspaces'], createObject()))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "16097029071121018179"
+            }
+          },
+          "parameters": {
+            "workspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics Workspace name"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 90,
+              "metadata": {
+                "description": "Retention in days"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2023-09-01",
+              "name": "[parameters('workspaceName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('retentionInDays')]",
+                "features": {
+                  "enableLogAccessUsingOnlyResourcePermissions": true
+                },
+                "workspaceCapping": {
+                  "dailyQuotaGb": -1
+                },
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.OperationsManagement/solutions",
+              "apiVersion": "2015-11-01-preview",
+              "name": "[format('VMInsights({0})', parameters('workspaceName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "plan": {
+                "name": "[format('VMInsights({0})', parameters('workspaceName'))]",
+                "publisher": "Microsoft",
+                "product": "OMSGallery/VMInsights",
+                "promotionCode": ""
+              },
+              "properties": {
+                "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "workspaceId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName')), '2023-09-01').customerId]"
+            },
+            "workspaceResourceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
+            },
+            "workspaceName": {
+              "type": "string",
+              "value": "[parameters('workspaceName')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-dcr",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceResourceId": "[if(parameters('useExistingLogAnalytics'), createObject('value', parameters('existingLogAnalyticsWorkspaceId')), createObject('value', reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2022-09-01').outputs.workspaceResourceId.value))]",
+          "dcrName": {
+            "value": "[format('dcr-{0}-vms', parameters('deploymentName'))]"
+          },
+          "tags": {
+            "value": "[union(variables('tags'), if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], createObject()))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "6803166653375127525"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "workspaceResourceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics Workspace Resource ID"
+              }
+            },
+            "dcrName": {
+              "type": "string",
+              "metadata": {
+                "description": "DCR name"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/dataCollectionRules",
+              "apiVersion": "2023-03-11",
+              "name": "[parameters('dcrName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "Linux",
+              "properties": {
+                "dataSources": {
+                  "performanceCounters": [
+                    {
+                      "name": "perfCounterDataSource",
+                      "streams": [
+                        "Microsoft-Perf",
+                        "Microsoft-InsightsMetrics"
+                      ],
+                      "samplingFrequencyInSeconds": 60,
+                      "counterSpecifiers": [
+                        "\\Processor(_Total)\\% Processor Time",
+                        "\\Memory\\Available MBytes",
+                        "\\Memory\\% Available Memory",
+                        "\\LogicalDisk(_Total)\\% Free Space",
+                        "\\LogicalDisk(_Total)\\Free Megabytes",
+                        "\\Network Interface(*)\\Bytes Total/sec",
+                        "\\Network Interface(*)\\Bytes Sent/sec",
+                        "\\Network Interface(*)\\Bytes Received/sec"
+                      ]
+                    }
+                  ],
+                  "extensions": [
+                    {
+                      "name": "DependencyAgentDataSource",
+                      "streams": [
+                        "Microsoft-ServiceMap"
+                      ],
+                      "extensionName": "DependencyAgent",
+                      "extensionSettings": {}
+                    }
+                  ]
+                },
+                "destinations": {
+                  "logAnalytics": [
+                    {
+                      "workspaceResourceId": "[parameters('workspaceResourceId')]",
+                      "name": "la-destination"
+                    }
+                  ]
+                },
+                "dataFlows": [
+                  {
+                    "streams": [
+                      "Microsoft-Perf",
+                      "Microsoft-InsightsMetrics"
+                    ],
+                    "destinations": [
+                      "la-destination"
+                    ]
+                  },
+                  {
+                    "streams": [
+                      "Microsoft-ServiceMap"
+                    ],
+                    "destinations": [
+                      "la-destination"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Insights/dataCollectionRules",
+              "apiVersion": "2023-03-11",
+              "name": "[format('{0}-windows', parameters('dcrName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "Windows",
+              "properties": {
+                "dataSources": {
+                  "performanceCounters": [
+                    {
+                      "name": "perfCounterDataSource",
+                      "streams": [
+                        "Microsoft-Perf",
+                        "Microsoft-InsightsMetrics"
+                      ],
+                      "samplingFrequencyInSeconds": 60,
+                      "counterSpecifiers": [
+                        "\\Processor Information(_Total)\\% Processor Time",
+                        "\\Memory\\Available Bytes",
+                        "\\Memory\\% Committed Bytes In Use",
+                        "\\LogicalDisk(_Total)\\% Free Space",
+                        "\\LogicalDisk(_Total)\\Free Megabytes",
+                        "\\Network Interface(*)\\Bytes Total/sec",
+                        "\\Network Interface(*)\\Bytes Sent/sec",
+                        "\\Network Interface(*)\\Bytes Received/sec"
+                      ]
+                    }
+                  ],
+                  "windowsEventLogs": [
+                    {
+                      "name": "eventLogsDataSource",
+                      "streams": [
+                        "Microsoft-Event"
+                      ],
+                      "xPathQueries": [
+                        "System!*[System[(Level=1 or Level=2 or Level=3)]]",
+                        "Application!*[System[(Level=1 or Level=2 or Level=3)]]"
+                      ]
+                    }
+                  ],
+                  "extensions": [
+                    {
+                      "name": "DependencyAgentDataSource",
+                      "streams": [
+                        "Microsoft-ServiceMap"
+                      ],
+                      "extensionName": "DependencyAgent",
+                      "extensionSettings": {}
+                    }
+                  ]
+                },
+                "destinations": {
+                  "logAnalytics": [
+                    {
+                      "workspaceResourceId": "[parameters('workspaceResourceId')]",
+                      "name": "la-destination"
+                    }
+                  ]
+                },
+                "dataFlows": [
+                  {
+                    "streams": [
+                      "Microsoft-Perf",
+                      "Microsoft-InsightsMetrics",
+                      "Microsoft-Event"
+                    ],
+                    "destinations": [
+                      "la-destination"
+                    ]
+                  },
+                  {
+                    "streams": [
+                      "Microsoft-ServiceMap"
+                    ],
+                    "destinations": [
+                      "la-destination"
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "outputs": {
+            "dcrId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrName'))]"
+            },
+            "dcrIdWindows": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('{0}-windows', parameters('dcrName')))]"
+            },
+            "dcrName": {
+              "type": "string",
+              "value": "[parameters('dcrName')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-log-analytics')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('createActionGroup')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-action-group",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "actionGroupName": {
+            "value": "[parameters('actionGroupName')]"
+          },
+          "location": {
+            "value": "global"
+          },
+          "emailRecipients": {
+            "value": "[parameters('emailRecipients')]"
+          },
+          "tags": {
+            "value": "[union(variables('tags'), if(contains(parameters('tagsByResource'), 'Microsoft.Insights/actionGroups'), parameters('tagsByResource')['Microsoft.Insights/actionGroups'], createObject()))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "7669431664522794153"
+            }
+          },
+          "parameters": {
+            "actionGroupName": {
+              "type": "string",
+              "metadata": {
+                "description": "Action Group name"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "global",
+              "metadata": {
+                "description": "Location (global for action groups)"
+              }
+            },
+            "emailRecipients": {
+              "type": "string",
+              "metadata": {
+                "description": "Email recipients (semicolon separated)"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags"
+              }
+            }
+          },
+          "variables": {
+            "emailArray": "[split(parameters('emailRecipients'), ';')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/actionGroups",
+              "apiVersion": "2023-09-01",
+              "name": "[parameters('actionGroupName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "copy": [
+                  {
+                    "name": "emailReceivers",
+                    "count": "[length(variables('emailArray'))]",
+                    "input": {
+                      "name": "[format('email-{0}', copyIndex('emailReceivers'))]",
+                      "emailAddress": "[trim(variables('emailArray')[copyIndex('emailReceivers')])]",
+                      "useCommonAlertSchema": true
+                    }
+                  }
+                ],
+                "groupShortName": "[take(parameters('actionGroupName'), 12)]",
+                "enabled": true
+              }
+            }
+          ],
+          "outputs": {
+            "actionGroupId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+            },
+            "actionGroupName": {
+              "type": "string",
+              "value": "[parameters('actionGroupName')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('createActionGroup')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-alert-rules",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceResourceId": "[if(parameters('useExistingLogAnalytics'), createObject('value', parameters('existingLogAnalyticsWorkspaceId')), createObject('value', reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2022-09-01').outputs.workspaceResourceId.value))]",
+          "actionGroupId": "[if(parameters('createActionGroup'), createObject('value', reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-action-group'), '2022-09-01').outputs.actionGroupId.value), createObject('value', ''))]",
+          "enableCPUAlerts": {
+            "value": "[parameters('enableCPUAlerts')]"
+          },
+          "cpuThreshold": {
+            "value": "[parameters('cpuThreshold')]"
+          },
+          "enableMemoryAlerts": {
+            "value": "[parameters('enableMemoryAlerts')]"
+          },
+          "memoryThreshold": {
+            "value": "[parameters('memoryThreshold')]"
+          },
+          "enableDiskAlerts": {
+            "value": "[parameters('enableDiskAlerts')]"
+          },
+          "diskThreshold": {
+            "value": "[parameters('diskThreshold')]"
+          },
+          "enableHeartbeatAlerts": {
+            "value": "[parameters('enableHeartbeatAlerts')]"
+          },
+          "alertNamePrefix": {
+            "value": "[parameters('deploymentName')]"
+          },
+          "tags": {
+            "value": "[union(variables('tags'), if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], createObject()))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "8689677986732866409"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "workspaceResourceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics Workspace Resource ID"
+              }
+            },
+            "actionGroupId": {
+              "type": "string",
+              "metadata": {
+                "description": "Action Group ID"
+              }
+            },
+            "enableCPUAlerts": {
+              "type": "bool",
+              "metadata": {
+                "description": "Enable CPU alerts"
+              }
+            },
+            "cpuThreshold": {
+              "type": "int",
+              "metadata": {
+                "description": "CPU threshold"
+              }
+            },
+            "enableMemoryAlerts": {
+              "type": "bool",
+              "metadata": {
+                "description": "Enable Memory alerts"
+              }
+            },
+            "memoryThreshold": {
+              "type": "int",
+              "metadata": {
+                "description": "Memory threshold"
+              }
+            },
+            "enableDiskAlerts": {
+              "type": "bool",
+              "metadata": {
+                "description": "Enable Disk alerts"
+              }
+            },
+            "diskThreshold": {
+              "type": "int",
+              "metadata": {
+                "description": "Disk threshold"
+              }
+            },
+            "enableHeartbeatAlerts": {
+              "type": "bool",
+              "metadata": {
+                "description": "Enable Heartbeat alerts"
+              }
+            },
+            "alertNamePrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Alert name prefix"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags"
+              }
+            }
+          },
+          "resources": [
+            {
+              "condition": "[parameters('enableCPUAlerts')]",
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('alert-{0}-high-cpu', parameters('alertNamePrefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "High CPU Usage Alert",
+                "description": "[format('Alert when CPU usage exceeds {0}%', parameters('cpuThreshold'))]",
+                "severity": 2,
+                "enabled": true,
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "scopes": [
+                  "[parameters('workspaceResourceId')]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "[format('Perf | where ObjectName == \"Processor\" and CounterName == \"% Processor Time\" | where InstanceName == \"_Total\" | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m) | where AggregatedValue > {0}', parameters('cpuThreshold'))]",
+                      "timeAggregation": "Average",
+                      "metricMeasureColumn": "AggregatedValue",
+                      "operator": "GreaterThan",
+                      "threshold": "[parameters('cpuThreshold')]",
+                      "failingPeriods": {
+                        "numberOfEvaluationPeriods": 2,
+                        "minFailingPeriodsToAlert": 2
+                      }
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": [
+                    "[parameters('actionGroupId')]"
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[parameters('enableMemoryAlerts')]",
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('alert-{0}-high-memory', parameters('alertNamePrefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "High Memory Usage Alert",
+                "description": "[format('Alert when Memory usage exceeds {0}%', parameters('memoryThreshold'))]",
+                "severity": 2,
+                "enabled": true,
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "scopes": [
+                  "[parameters('workspaceResourceId')]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "[format('Perf | where ObjectName == \"Memory\" and CounterName == \"% Committed Bytes In Use\" | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m) | where AggregatedValue > {0}', parameters('memoryThreshold'))]",
+                      "timeAggregation": "Average",
+                      "metricMeasureColumn": "AggregatedValue",
+                      "operator": "GreaterThan",
+                      "threshold": "[parameters('memoryThreshold')]",
+                      "failingPeriods": {
+                        "numberOfEvaluationPeriods": 2,
+                        "minFailingPeriodsToAlert": 2
+                      }
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": [
+                    "[parameters('actionGroupId')]"
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[parameters('enableDiskAlerts')]",
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('alert-{0}-low-disk', parameters('alertNamePrefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "Low Disk Space Alert",
+                "description": "[format('Alert when Disk usage exceeds {0}%', parameters('diskThreshold'))]",
+                "severity": 2,
+                "enabled": true,
+                "evaluationFrequency": "PT15M",
+                "windowSize": "PT30M",
+                "scopes": [
+                  "[parameters('workspaceResourceId')]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "[format('Perf | where ObjectName == \"LogicalDisk\" and CounterName == \"% Free Space\" | where InstanceName != \"_Total\" | summarize AggregatedValue = avg(CounterValue) by Computer, InstanceName, bin(TimeGenerated, 15m) | where AggregatedValue < {0}', sub(100, parameters('diskThreshold')))]",
+                      "timeAggregation": "Average",
+                      "metricMeasureColumn": "AggregatedValue",
+                      "operator": "LessThan",
+                      "threshold": "[sub(100, parameters('diskThreshold'))]",
+                      "failingPeriods": {
+                        "numberOfEvaluationPeriods": 2,
+                        "minFailingPeriodsToAlert": 2
+                      }
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": [
+                    "[parameters('actionGroupId')]"
+                  ]
+                }
+              }
+            },
+            {
+              "condition": "[parameters('enableHeartbeatAlerts')]",
+              "type": "Microsoft.Insights/scheduledQueryRules",
+              "apiVersion": "2023-03-15-preview",
+              "name": "[format('alert-{0}-vm-offline', parameters('alertNamePrefix'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "displayName": "VM Offline Alert",
+                "description": "Alert when VM stops sending heartbeat",
+                "severity": 1,
+                "enabled": true,
+                "evaluationFrequency": "PT5M",
+                "windowSize": "PT15M",
+                "scopes": [
+                  "[parameters('workspaceResourceId')]"
+                ],
+                "criteria": {
+                  "allOf": [
+                    {
+                      "query": "Heartbeat | summarize LastHeartbeat = max(TimeGenerated) by Computer | where LastHeartbeat < ago(10m)",
+                      "timeAggregation": "Count",
+                      "operator": "GreaterThan",
+                      "threshold": 0,
+                      "failingPeriods": {
+                        "numberOfEvaluationPeriods": 2,
+                        "minFailingPeriodsToAlert": 2
+                      }
+                    }
+                  ]
+                },
+                "actions": {
+                  "actionGroups": [
+                    "[parameters('actionGroupId')]"
+                  ]
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "cpuAlertId": {
+              "type": "string",
+              "value": "[if(parameters('enableCPUAlerts'), resourceId('Microsoft.Insights/scheduledQueryRules', format('alert-{0}-high-cpu', parameters('alertNamePrefix'))), '')]"
+            },
+            "memoryAlertId": {
+              "type": "string",
+              "value": "[if(parameters('enableMemoryAlerts'), resourceId('Microsoft.Insights/scheduledQueryRules', format('alert-{0}-high-memory', parameters('alertNamePrefix'))), '')]"
+            },
+            "diskAlertId": {
+              "type": "string",
+              "value": "[if(parameters('enableDiskAlerts'), resourceId('Microsoft.Insights/scheduledQueryRules', format('alert-{0}-low-disk', parameters('alertNamePrefix'))), '')]"
+            },
+            "heartbeatAlertId": {
+              "type": "string",
+              "value": "[if(parameters('enableHeartbeatAlerts'), resourceId('Microsoft.Insights/scheduledQueryRules', format('alert-{0}-vm-offline', parameters('alertNamePrefix'))), '')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-action-group')]",
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-log-analytics')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('monitorExistingVMs'), greater(length(parameters('selectedVMIds')), 0))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-vm-associations",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "vmIds": {
+            "value": "[parameters('selectedVMIds')]"
+          },
+          "dcrId": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-dcr'), '2022-09-01').outputs.dcrId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "7161952667780430948"
+            }
+          },
+          "parameters": {
+            "vmIds": {
+              "type": "array",
+              "metadata": {
+                "description": "Array of VM Resource IDs"
+              }
+            },
+            "dcrId": {
+              "type": "string",
+              "metadata": {
+                "description": "Data Collection Rule ID"
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "vmDetails",
+                "count": "[length(parameters('vmIds'))]",
+                "input": {
+                  "subscriptionId": "[split(parameters('vmIds')[copyIndex('vmDetails')], '/')[2]]",
+                  "resourceGroup": "[split(parameters('vmIds')[copyIndex('vmDetails')], '/')[4]]",
+                  "name": "[split(parameters('vmIds')[copyIndex('vmDetails')], '/')[8]]",
+                  "id": "[parameters('vmIds')[copyIndex('vmDetails')]]"
+                }
+              }
+            ]
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "vmAgentDeployment",
+                "count": "[length(variables('vmDetails'))]"
+              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2022-09-01",
+              "name": "[format('deploy-agent-{0}', variables('vmDetails')[copyIndex()].name)]",
+              "resourceGroup": "[variables('vmDetails')[copyIndex()].resourceGroup]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "vmName": {
+                    "value": "[variables('vmDetails')[copyIndex()].name]"
+                  },
+                  "location": {
+                    "value": "[resourceGroup().location]"
+                  },
+                  "dcrId": {
+                    "value": "[parameters('dcrId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.28.1.47646",
+                      "templateHash": "8283059508832228694"
+                    }
+                  },
+                  "parameters": {
+                    "vmName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "VM Name"
+                      }
+                    },
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Location"
+                      }
+                    },
+                    "dcrId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Data Collection Rule ID"
+                      }
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Compute/virtualMachines/extensions",
+                      "apiVersion": "2024-03-01",
+                      "name": "[format('{0}/{1}', parameters('vmName'), 'AzureMonitorAgent')]",
+                      "location": "[parameters('location')]",
+                      "properties": {
+                        "publisher": "Microsoft.Azure.Monitor",
+                        "type": "AzureMonitorWindowsAgent",
+                        "typeHandlerVersion": "1.0",
+                        "autoUpgradeMinorVersion": true,
+                        "enableAutomaticUpgrade": true
+                      }
+                    },
+                    {
+                      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+                      "apiVersion": "2022-06-01",
+                      "scope": "[format('Microsoft.Compute/virtualMachines/{0}', parameters('vmName'))]",
+                      "name": "[format('dcra-{0}', uniqueString(resourceId('Microsoft.Compute/virtualMachines', parameters('vmName')), parameters('dcrId')))]",
+                      "properties": {
+                        "dataCollectionRuleId": "[parameters('dcrId')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Compute/virtualMachines/extensions', parameters('vmName'), 'AzureMonitorAgent')]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "associationId": {
+                      "type": "string",
+                      "value": "[extensionResourceId(resourceId('Microsoft.Compute/virtualMachines', parameters('vmName')), 'Microsoft.Insights/dataCollectionRuleAssociations', format('dcra-{0}', uniqueString(resourceId('Microsoft.Compute/virtualMachines', parameters('vmName')), parameters('dcrId'))))]"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "associationIds": {
+              "type": "array",
+              "copy": {
+                "count": "[length(variables('vmDetails'))]",
+                "input": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('vmDetails')[copyIndex()].resourceGroup), 'Microsoft.Resources/deployments', format('deploy-agent-{0}', variables('vmDetails')[copyIndex()].name)), '2022-09-01').outputs.associationId.value]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-dcr')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('autoEnrollNewVMs')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-auto-enroll-policy",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "policyName": {
+            "value": "[format('policy-{0}-auto-enroll', parameters('deploymentName'))]"
+          },
+          "dcrId": {
+            "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-dcr'), '2022-09-01').outputs.dcrId.value]"
+          },
+          "assignmentName": {
+            "value": "[format('assign-{0}-auto-enroll', parameters('deploymentName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "109781192300068777"
+            }
+          },
+          "parameters": {
+            "policyName": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy name"
+              }
+            },
+            "dcrId": {
+              "type": "string",
+              "metadata": {
+                "description": "Data Collection Rule ID"
+              }
+            },
+            "assignmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Policy assignment name"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Location for policy assignment"
+              }
+            }
+          },
+          "variables": {
+            "windowsPolicyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/ca817e41-e85a-4783-bc7f-dc532d36235e",
+            "linuxPolicyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/a4034bc6-ae50-406d-bf76-50f4ee5a7811",
+            "dcrAssociationPolicyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/2ea82cdd-f2e8-4500-af75-67a2e084ca74"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policySetDefinitions",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('policyName')]",
+              "properties": {
+                "displayName": "Deploy Azure Monitor Agent and associate with DCR",
+                "description": "Automatically deploy Azure Monitor Agent to VMs and associate them with the specified Data Collection Rule",
+                "policyType": "Custom",
+                "metadata": {
+                  "category": "Monitoring"
+                },
+                "parameters": {
+                  "dcrResourceId": {
+                    "type": "String",
+                    "metadata": {
+                      "displayName": "Data Collection Rule Resource ID",
+                      "description": "Resource ID of the Data Collection Rule to associate with VMs"
+                    }
+                  },
+                  "effect": {
+                    "type": "String",
+                    "defaultValue": "DeployIfNotExists",
+                    "allowedValues": [
+                      "DeployIfNotExists",
+                      "Disabled"
+                    ],
+                    "metadata": {
+                      "displayName": "Effect",
+                      "description": "Enable or disable the execution of the policy"
+                    }
+                  }
+                },
+                "policyDefinitions": [
+                  {
+                    "policyDefinitionId": "[variables('windowsPolicyDefinitionId')]",
+                    "parameters": {
+                      "effect": {
+                        "value": "[[parameters('effect')]"
+                      }
+                    },
+                    "policyDefinitionReferenceId": "DeployAMAWindows"
+                  },
+                  {
+                    "policyDefinitionId": "[variables('linuxPolicyDefinitionId')]",
+                    "parameters": {
+                      "effect": {
+                        "value": "[[parameters('effect')]"
+                      }
+                    },
+                    "policyDefinitionReferenceId": "DeployAMALinux"
+                  },
+                  {
+                    "policyDefinitionId": "[variables('dcrAssociationPolicyDefinitionId')]",
+                    "parameters": {
+                      "effect": {
+                        "value": "[[parameters('effect')]"
+                      },
+                      "dcrResourceId": {
+                        "value": "[[parameters('dcrResourceId')]"
+                      }
+                    },
+                    "policyDefinitionReferenceId": "AssociateDCR"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('assignmentName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "displayName": "Auto-enroll VMs to Azure Monitor",
+                "description": "Automatically installs Azure Monitor Agent and associates VMs with Data Collection Rule",
+                "policyDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/policySetDefinitions', parameters('policyName'))]",
+                "parameters": {
+                  "dcrResourceId": {
+                    "value": "[parameters('dcrId')]"
+                  },
+                  "effect": {
+                    "value": "DeployIfNotExists"
+                  }
+                },
+                "enforcementMode": "Default"
+              },
+              "dependsOn": [
+                "[subscriptionResourceId('Microsoft.Authorization/policySetDefinitions', parameters('policyName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('assignmentName')), 'Contributor')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('assignmentName')), '2023-04-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('assignmentName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "policySetDefinitionId": {
+              "type": "string",
+              "value": "[subscriptionResourceId('Microsoft.Authorization/policySetDefinitions', parameters('policyName'))]"
+            },
+            "policyAssignmentId": {
+              "type": "string",
+              "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('assignmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-dcr')]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployDashboard')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-workbook",
+      "location": "[deployment().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workbookName": {
+            "value": "[parameters('dashboardName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceResourceId": "[if(parameters('useExistingLogAnalytics'), createObject('value', parameters('existingLogAnalyticsWorkspaceId')), createObject('value', reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2022-09-01').outputs.workspaceResourceId.value))]",
+          "tags": {
+            "value": "[union(variables('tags'), if(contains(parameters('tagsByResource'), 'Microsoft.Insights/workbooks'), parameters('tagsByResource')['Microsoft.Insights/workbooks'], createObject()))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "13689554998230680486"
+            }
+          },
+          "parameters": {
+            "workbookName": {
+              "type": "string",
+              "metadata": {
+                "description": "Workbook display name"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "workspaceResourceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics Workspace Resource ID"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags"
+              }
+            }
+          },
+          "variables": {
+            "workbookId": "[guid(parameters('workbookName'), resourceGroup().id)]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/workbooks",
+              "apiVersion": "2023-06-01",
+              "name": "[variables('workbookId')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "shared",
+              "properties": {
+                "displayName": "[parameters('workbookName')]",
+                "serializedData": "{\"version\":\"Notebook/1.0\",\"items\":[{\"type\":1,\"content\":{\"json\":\"## VM Monitoring Dashboard\\n---\\nMonitoring dashboard for Azure Virtual Machines.\"},\"name\":\"text-header\"}]}",
+                "version": "1.0",
+                "sourceId": "[parameters('workspaceResourceId')]",
+                "category": "Azure Monitor"
+              }
+            }
+          ],
+          "outputs": {
+            "workbookId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/workbooks', variables('workbookId'))]"
+            },
+            "workbookName": {
+              "type": "string",
+              "value": "[variables('workbookId')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-log-analytics')]",
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[if(parameters('useExistingResourceGroup'), parameters('existingResourceGroupName'), variables('resourceGroupName'))]"
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "value": "[if(parameters('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2022-09-01').outputs.workspaceId.value)]"
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "value": "[if(parameters('useExistingLogAnalytics'), split(parameters('existingLogAnalyticsWorkspaceId'), '/')[8], reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2022-09-01').outputs.workspaceName.value)]"
+    },
+    "dataCollectionRuleId": {
+      "type": "string",
+      "value": "[reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-dcr'), '2022-09-01').outputs.dcrId.value]"
+    },
+    "actionGroupId": {
+      "type": "string",
+      "value": "[if(parameters('createActionGroup'), reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-action-group'), '2022-09-01').outputs.actionGroupId.value, '')]"
+    },
+    "workbookId": {
+      "type": "string",
+      "value": "[if(parameters('deployDashboard'), reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-workbook'), '2022-09-01').outputs.workbookId.value, '')]"
+    },
+    "dashboardUrl": {
+      "type": "string",
+      "value": "[if(parameters('deployDashboard'), format('https://portal.azure.com/#blade/AppInsightsExtension/UsageNotebookBlade/ComponentId/{0}', reference(subscriptionResourceId('Microsoft.Resources/deployments', 'deploy-workbook'), '2022-09-01').outputs.workbookId.value), '')]"
+    }
+  }
+}

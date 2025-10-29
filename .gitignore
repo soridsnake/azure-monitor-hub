@@ -1,0 +1,23 @@
+# Azure
+*.log
+*.cache
+.azure/
+
+# Bicep
+*.bicepparam
+
+# PowerShell
+*.ps1~
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Temp files
+*.tmp
+*.temp
+*~

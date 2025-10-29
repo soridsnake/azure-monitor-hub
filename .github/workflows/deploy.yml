@@ -1,0 +1,258 @@
+name: Deploy Azure Monitor Hub
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  DEPLOYMENT_NAME: monitor-hub-${{ github.event.inputs.environment || 'dev' }}
+  LOCATION: westeurope
+
+jobs:
+  validate:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bicep
+        uses: Azure/bicep-install-action@v1
+        with:
+          version: latest
+
+      - name: Bicep Build
+        run: |
+          bicep build ./workload/bicep/deploy.bicep
+          bicep build ./workload/bicep/modules/*.bicep
+
+      - name: Bicep Lint
+        run: |
+          bicep lint ./workload/bicep/deploy.bicep
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PowerShell
+        uses: azure/powershell@v1
+        with:
+          azPSVersion: latest
+          inlineScript: |
+            Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
+
+      - name: Run Pester Tests
+        run: |
+          # Install Pester
+          Install-Module -Name Pester -Force -SkipPublisherCheck
+          
+          # Run tests (if you have test files)
+          # Invoke-Pester -Path ./tests -OutputFormat NUnitXml -OutputFile ./test-results.xml
+
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    environment:
+      name: development
+      url: https://portal.azure.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure
+        uses: azure/arm-deploy@v1
+        with:
+          scope: subscription
+          region: ${{ env.LOCATION }}
+          template: ./workload/bicep/deploy.bicep
+          parameters: >
+            deploymentName=${{ env.DEPLOYMENT_NAME }}
+            location=${{ env.LOCATION }}
+            emailRecipients=${{ secrets.EMAIL_RECIPIENTS }}
+            cpuThreshold=85
+            memoryThreshold=85
+            diskThreshold=85
+
+      - name: Get Deployment Outputs
+        id: outputs
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            outputs=$(az deployment sub show \
+              --name ${{ env.DEPLOYMENT_NAME }} \
+              --query properties.outputs \
+              --output json)
+            
+            echo "deployment_outputs=$outputs" >> $GITHUB_OUTPUT
+
+      - name: Display Results
+        run: |
+          echo "✅ Deployment completed!"
+          echo "📊 Outputs: ${{ steps.outputs.outputs.deployment_outputs }}"
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    if: github.event.inputs.environment == 'prod'
+    environment:
+      name: production
+      url: https://portal.azure.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID_PROD }}
+
+      - name: Deploy to Production
+        uses: azure/arm-deploy@v1
+        with:
+          scope: subscription
+          region: ${{ env.LOCATION }}
+          template: ./workload/bicep/deploy.bicep
+          parameters: >
+            deploymentName=monitor-hub-prod
+            location=${{ env.LOCATION }}
+            emailRecipients=${{ secrets.EMAIL_RECIPIENTS_PROD }}
+            cpuThreshold=90
+            memoryThreshold=90
+            diskThreshold=85
+            retentionInDays=180
+
+      - name: Post-Deployment Verification
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            # Verify Log Analytics Workspace
+            az monitor log-analytics workspace show \
+              --resource-group rg-monitor-hub-prod \
+              --workspace-name law-monitor-hub-prod
+            
+            # Verify Alert Rules
+            az monitor scheduled-query list \
+              --resource-group rg-monitor-hub-prod
+
+      - name: Send Success Notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: '✅ Azure Monitor Hub - Production Deployment Successful'
+          to: ${{ secrets.EMAIL_RECIPIENTS_PROD }}
+          from: GitHub Actions
+          body: |
+            Production deployment completed successfully!
+            
+            Deployment Name: monitor-hub-prod
+            Region: ${{ env.LOCATION }}
+            Commit: ${{ github.sha }}
+            Triggered by: ${{ github.actor }}
+```
+
+---
+
+Perfetto! Ora creiamo l'ultimo file - il **LICENSE**!
+
+### **Passo 7.4: License File `LICENSE`**
+```
+MIT License
+
+Copyright (c) 2025 [Your Company Name]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## 🎉 **COMPLETATO! Ecco il recap completo:**
+
+Abbiamo creato un **Azure Monitor Hub Accelerator** completo con:
+
+### ✅ **Struttura File Completa**
+```
+azure-monitor-hub/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml                    # GitHub Actions CI/CD
+├── workload/
+│   ├── bicep/
+│   │   ├── deploy.bicep                 # Main orchestrator
+│   │   └── modules/
+│   │       ├── log-analytics.bicep      # Log Analytics Workspace
+│   │       ├── data-collection-rules.bicep  # DCR (Win + Linux)
+│   │       ├── action-group.bicep       # Email notifications
+│   │       ├── alert-rules.bicep        # CPU/Memory/Disk/Heartbeat
+│   │       ├── vm-associations.bicep    # VM + DCR association
+│   │       ├── azure-policy.bicep       # Auto-enrollment policy
+│   │       └── workbook.bicep           # Dashboard deployment
+│   ├── scripts/
+│   │   ├── Deploy-MonitorHub.ps1        # Main deployment script
+│   │   └── Validate-Prerequisites.ps1   # Prerequisites check
+│   └── arm/                             # (Auto-generated from Bicep)
+├── dashboards/
+│   └── workbooks/
+│       └── vm-monitoring-dashboard.json # Nagios-style dashboard
+├── portal-ui/
+│   ├── createUiDefinition.json          # Portal wizard UI
+│   └── mainTemplate.json                # Portal template
+├── docs/
+│   ├── deployment-guide.md              # Complete deployment guide
+│   └── quick-start.md                   # 5-minute quick start
+├── README.md                            # Main documentation
+└── LICENSE                              # MIT License

@@ -1,0 +1,355 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## 🖥️ VM Monitoring Dashboard\n---\nReal-time monitoring dashboard for all Azure Virtual Machines. Updates every 5 minutes.\n\n**Legend:**\n- 🟢 **Healthy**: All metrics within normal range\n- 🟡 **Warning**: One or more metrics approaching threshold\n- 🔴 **Critical**: One or more metrics exceeded threshold\n- ⚫ **Offline**: VM not sending heartbeat"
+      },
+      "name": "text-header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "timeRange",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 900000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 300000
+                },
+                {
+                  "durationMs": 900000
+                },
+                {
+                  "durationMs": 1800000
+                },
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 14400000
+                },
+                {
+                  "durationMs": 86400000
+                }
+              ],
+              "allowCustom": true
+            },
+            "label": "Time Range"
+          },
+          {
+            "id": "vmFilter",
+            "version": "KqlParameterItem/1.0",
+            "name": "VMFilter",
+            "type": 2,
+            "isRequired": false,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "Heartbeat\n| where TimeGenerated {TimeRange}\n| distinct Computer\n| sort by Computer asc",
+            "typeSettings": {
+              "additionalResourceOptions": [
+                "value::all"
+              ],
+              "selectAllValue": "*",
+              "showDefault": false
+            },
+            "defaultValue": "value::all",
+            "label": "Virtual Machines"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parameters-time"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let HealthyThreshold = 80;\nlet WarningThreshold = 85;\nlet CriticalThreshold = 90;\nlet HeartbeatData = Heartbeat\n| where TimeGenerated {TimeRange}\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize LastHeartbeat = max(TimeGenerated) by Computer\n| extend MinutesSinceLastHeartbeat = datetime_diff('minute', now(), LastHeartbeat)\n| extend Status = case(\n    MinutesSinceLastHeartbeat > 10, 'Offline',\n    'Online'\n);\nlet CPUData = Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Processor' and CounterName == '% Processor Time'\n| where InstanceName == '_Total'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize CPUUsage = avg(CounterValue) by Computer;\nlet MemoryDataWindows = Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Memory' and CounterName == '% Committed Bytes In Use'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize MemoryUsage = avg(CounterValue) by Computer;\nlet MemoryDataLinux = Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Memory' and CounterName == 'Available MBytes'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize AvailableMemory = avg(CounterValue) by Computer\n| join kind=inner (\n    Perf\n    | where TimeGenerated {TimeRange}\n    | where ObjectName == 'Memory' and CounterName == 'Total MBytes'\n    | summarize TotalMemory = avg(CounterValue) by Computer\n) on Computer\n| extend MemoryUsage = 100 - (AvailableMemory / TotalMemory * 100)\n| project Computer, MemoryUsage;\nlet MemoryData = union MemoryDataWindows, MemoryDataLinux\n| summarize MemoryUsage = max(MemoryUsage) by Computer;\nlet DiskData = Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'LogicalDisk' and CounterName == '% Free Space'\n| where InstanceName != '_Total'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize DiskFreeSpace = avg(CounterValue) by Computer\n| extend DiskUsage = 100 - DiskFreeSpace;\nHeartbeatData\n| join kind=leftouter CPUData on Computer\n| join kind=leftouter MemoryData on Computer\n| join kind=leftouter DiskData on Computer\n| extend CPUUsage = coalesce(CPUUsage, 0.0)\n| extend MemoryUsage = coalesce(MemoryUsage, 0.0)\n| extend DiskUsage = coalesce(DiskUsage, 0.0)\n| extend OverallStatus = case(\n    Status == 'Offline', '⚫ Offline',\n    CPUUsage >= CriticalThreshold or MemoryUsage >= CriticalThreshold or DiskUsage >= CriticalThreshold, '🔴 Critical',\n    CPUUsage >= WarningThreshold or MemoryUsage >= WarningThreshold or DiskUsage >= WarningThreshold, '🟡 Warning',\n    '🟢 Healthy'\n)\n| project Computer, OverallStatus, CPUUsage, MemoryUsage, DiskUsage, LastHeartbeat, MinutesSinceLastHeartbeat\n| order by OverallStatus desc, Computer asc",
+        "size": 0,
+        "title": "Virtual Machine Status Overview",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Computer",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "OverallStatus",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "Healthy",
+                    "representation": "green",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "Warning",
+                    "representation": "yellow",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "Critical",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "Offline",
+                    "representation": "gray",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "lightBlue",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "CPUUsage",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 0,
+                "max": 100,
+                "palette": "greenRed"
+              },
+              "numberFormat": {
+                "unit": 1,
+                "options": {
+                  "style": "decimal",
+                  "maximumFractionDigits": 1
+                }
+              }
+            },
+            {
+              "columnMatch": "MemoryUsage",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 0,
+                "max": 100,
+                "palette": "greenRed"
+              },
+              "numberFormat": {
+                "unit": 1,
+                "options": {
+                  "style": "decimal",
+                  "maximumFractionDigits": 1
+                }
+              }
+            },
+            {
+              "columnMatch": "DiskUsage",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 0,
+                "max": 100,
+                "palette": "greenRed"
+              },
+              "numberFormat": {
+                "unit": 1,
+                "options": {
+                  "style": "decimal",
+                  "maximumFractionDigits": 1
+                }
+              }
+            },
+            {
+              "columnMatch": "LastHeartbeat",
+              "formatter": 6
+            },
+            {
+              "columnMatch": "MinutesSinceLastHeartbeat",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 0,
+                "max": 10,
+                "palette": "greenRed"
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            }
+          ],
+          "rowLimit": 1000,
+          "filter": true,
+          "labelSettings": [
+            {
+              "columnId": "Computer",
+              "label": "Virtual Machine"
+            },
+            {
+              "columnId": "OverallStatus",
+              "label": "Status"
+            },
+            {
+              "columnId": "CPUUsage",
+              "label": "CPU %"
+            },
+            {
+              "columnId": "MemoryUsage",
+              "label": "Memory %"
+            },
+            {
+              "columnId": "DiskUsage",
+              "label": "Disk %"
+            },
+            {
+              "columnId": "LastHeartbeat",
+              "label": "Last Heartbeat"
+            },
+            {
+              "columnId": "MinutesSinceLastHeartbeat",
+              "label": "Minutes Since Heartbeat"
+            }
+          ]
+        }
+      },
+      "name": "query-vm-status"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let data = Heartbeat\n| where TimeGenerated {TimeRange}\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize LastHeartbeat = max(TimeGenerated) by Computer\n| extend MinutesSinceLastHeartbeat = datetime_diff('minute', now(), LastHeartbeat)\n| extend Status = case(\n    MinutesSinceLastHeartbeat > 10, 'Offline',\n    'Online'\n);\ndata\n| summarize Count = count() by Status",
+        "size": 3,
+        "title": "VM Status Summary",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Status",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Count",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "useGrouping": false,
+                "maximumFractionDigits": 2,
+                "maximumSignificantDigits": 3
+              }
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "customWidth": "33",
+      "name": "query-status-summary"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Processor' and CounterName == '% Processor Time'\n| where InstanceName == '_Total'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize AvgCPU = avg(CounterValue) by Computer\n| top 5 by AvgCPU desc",
+        "size": 3,
+        "title": "Top 5 VMs by CPU Usage",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "customWidth": "33",
+      "name": "query-top-cpu"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union\n(Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Memory' and CounterName == '% Committed Bytes In Use'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize AvgMemory = avg(CounterValue) by Computer),\n(Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Memory' and CounterName == 'Available MBytes'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize AvailableMemory = avg(CounterValue) by Computer\n| join kind=inner (\n    Perf\n    | where TimeGenerated {TimeRange}\n    | where ObjectName == 'Memory' and CounterName == 'Total MBytes'\n    | summarize TotalMemory = avg(CounterValue) by Computer\n) on Computer\n| extend AvgMemory = 100 - (AvailableMemory / TotalMemory * 100)\n| project Computer, AvgMemory)\n| summarize AvgMemory = max(AvgMemory) by Computer\n| top 5 by AvgMemory desc",
+        "size": 3,
+        "title": "Top 5 VMs by Memory Usage",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "customWidth": "33",
+      "name": "query-top-memory"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Processor' and CounterName == '% Processor Time'\n| where InstanceName == '_Total'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize ['CPU %'] = avg(CounterValue) by bin(TimeGenerated, 5m), Computer\n| render timechart",
+        "size": 0,
+        "title": "CPU Usage Over Time",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "customWidth": "50",
+      "name": "query-cpu-overtime"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union\n(Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Memory' and CounterName == '% Committed Bytes In Use'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize ['Memory %'] = avg(CounterValue) by bin(TimeGenerated, 5m), Computer),\n(Perf\n| where TimeGenerated {TimeRange}\n| where ObjectName == 'Memory' and CounterName == 'Available MBytes'\n| where '*' in ({VMFilter}) or Computer in ({VMFilter})\n| summarize AvailableMemory = avg(CounterValue) by bin(TimeGenerated, 5m), Computer\n| join kind=inner (\n    Perf\n    | where TimeGenerated {TimeRange}\n    | where ObjectName == 'Memory' and CounterName == 'Total MBytes'\n    | summarize TotalMemory = avg(CounterValue) by Computer\n) on Computer\n| extend ['Memory %'] = 100 - (AvailableMemory / TotalMemory * 100)\n| project TimeGenerated, Computer, ['Memory %'])\n| render timechart",
+        "size": 0,
+        "title": "Memory Usage Over Time",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "customWidth": "50",
+      "name": "query-memory-overtime"
+    }
+  ],
+  "fallbackResourceIds": [],
+  "fromTemplateId": "sentinel-UserWorkbook",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
