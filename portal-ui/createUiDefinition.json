@@ -4,7 +4,19 @@
   "version": "0.1.2-preview",
   "parameters": {
     "config": {
-      "isWizard": true
+      "isWizard": true,
+      "basics": {
+        "description": "**Azure Monitor Hub** - Deploy enterprise-grade VM monitoring with automated alerts, dashboards, and compliance reporting.",
+        "resourceGroup": {
+          "allowExisting": true
+        },
+        "location": {
+          "visible": true,
+          "resourceTypes": [
+            "Microsoft.OperationalInsights/workspaces"
+          ]
+        }
+      }
     },
     "basics": [
       {
@@ -26,40 +38,6 @@
         "name": "infrastructure",
         "label": "Infrastructure",
         "elements": [
-          {
-            "name": "resourceGroupSection",
-            "type": "Microsoft.Common.Section",
-            "label": "Resource Group",
-            "elements": [
-              {
-                "name": "resourceGroupOption",
-                "type": "Microsoft.Common.OptionsGroup",
-                "label": "Resource Group",
-                "defaultValue": "Create new",
-                "toolTip": "Create a new Resource Group or use an existing one",
-                "constraints": {
-                  "allowedValues": [
-                    {
-                      "label": "Create new",
-                      "value": "new"
-                    },
-                    {
-                      "label": "Use existing",
-                      "value": "existing"
-                    }
-                  ]
-                }
-              },
-              {
-                "name": "existingResourceGroupName",
-                "type": "Microsoft.Solutions.ResourceSelector",
-                "label": "Select Resource Group",
-                "resourceType": "Microsoft.Resources/resourceGroups",
-                "toolTip": "Select an existing Resource Group",
-                "visible": "[equals(steps('infrastructure').resourceGroupSection.resourceGroupOption, 'existing')]"
-              }
-            ]
-          },
           {
             "name": "logAnalyticsSection",
             "type": "Microsoft.Common.Section",
@@ -103,6 +81,12 @@
                 "label": "Select Workspace",
                 "resourceType": "Microsoft.OperationalInsights/workspaces",
                 "toolTip": "Select an existing Log Analytics Workspace",
+                "options": {
+                  "filter": {
+                    "subscription": "onBasics",
+                    "location": "onBasics"
+                  }
+                },
                 "visible": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'existing')]"
               },
               {
@@ -113,7 +97,7 @@
                 "label": "Log Retention Days",
                 "subLabel": "days",
                 "defaultValue": 90,
-                "toolTip": "Number of days to retain log data",
+                "toolTip": "Number of days to retain log data. Higher retention = higher costs.",
                 "constraints": {
                   "required": true
                 },
@@ -139,6 +123,12 @@
                 "label": "Select Virtual Machines",
                 "resourceType": "Microsoft.Compute/virtualMachines",
                 "toolTip": "Select VMs to monitor (Azure Monitor Agent will be installed)",
+                "options": {
+                  "filter": {
+                    "subscription": "onBasics",
+                    "location": "onBasics"
+                  }
+                },
                 "visible": "[steps('infrastructure').vmSection.monitorVMs]"
               },
               {
@@ -147,7 +137,7 @@
                 "visible": true,
                 "options": {
                   "icon": "Info",
-                  "text": "New VMs will be automatically enrolled via Azure Policy if enabled in the next steps."
+                  "text": "New VMs will be automatically enrolled via Azure Policy if enabled in the Automation step."
                 }
               }
             ]
@@ -167,7 +157,8 @@
                 "name": "enableCPUAlerts",
                 "type": "Microsoft.Common.CheckBox",
                 "label": "Enable CPU alerts",
-                "defaultValue": true
+                "defaultValue": true,
+                "toolTip": "Alert when CPU usage exceeds threshold"
               },
               {
                 "name": "cpuThreshold",
@@ -177,6 +168,7 @@
                 "label": "CPU Threshold",
                 "subLabel": "%",
                 "defaultValue": 85,
+                "toolTip": "Alert when CPU usage exceeds this percentage",
                 "constraints": {
                   "required": true
                 },
@@ -193,7 +185,8 @@
                 "name": "enableMemoryAlerts",
                 "type": "Microsoft.Common.CheckBox",
                 "label": "Enable Memory alerts",
-                "defaultValue": true
+                "defaultValue": true,
+                "toolTip": "Alert when Memory usage exceeds threshold"
               },
               {
                 "name": "memoryThreshold",
@@ -203,6 +196,7 @@
                 "label": "Memory Threshold",
                 "subLabel": "%",
                 "defaultValue": 85,
+                "toolTip": "Alert when Memory usage exceeds this percentage",
                 "constraints": {
                   "required": true
                 },
@@ -219,7 +213,8 @@
                 "name": "enableDiskAlerts",
                 "type": "Microsoft.Common.CheckBox",
                 "label": "Enable Disk alerts",
-                "defaultValue": true
+                "defaultValue": true,
+                "toolTip": "Alert when Disk usage exceeds threshold"
               },
               {
                 "name": "diskThreshold",
@@ -229,6 +224,7 @@
                 "label": "Disk Threshold",
                 "subLabel": "%",
                 "defaultValue": 85,
+                "toolTip": "Alert when Disk usage exceeds this percentage",
                 "constraints": {
                   "required": true
                 },
@@ -246,7 +242,7 @@
                 "type": "Microsoft.Common.CheckBox",
                 "label": "Enable VM Heartbeat alerts",
                 "defaultValue": true,
-                "toolTip": "Alert when VM stops sending heartbeat (offline)"
+                "toolTip": "Alert when VM stops sending heartbeat (VM offline)"
               }
             ]
           }
@@ -261,6 +257,7 @@
             "type": "Microsoft.Common.TextBox",
             "label": "Action Group Name",
             "defaultValue": "[concat('ag-', basics('deploymentNameBasics'))]",
+            "toolTip": "Name for the Action Group that sends notifications",
             "constraints": {
               "required": true,
               "regex": "^[a-zA-Z0-9-]{3,64}$",
@@ -272,7 +269,7 @@
             "type": "Microsoft.Common.TextBox",
             "label": "Email Recipients",
             "placeholder": "admin@company.com;ops@company.com",
-            "toolTip": "Semicolon-separated email addresses",
+            "toolTip": "Semicolon-separated email addresses for alert notifications",
             "constraints": {
               "required": true,
               "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(;[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})*$",
@@ -322,10 +319,28 @@
             "type": "Microsoft.Common.TextBox",
             "label": "Dashboard Name",
             "defaultValue": "VM Monitoring Dashboard",
+            "toolTip": "Display name for the monitoring dashboard workbook",
             "constraints": {
               "required": true
             },
             "visible": "[steps('automation').deployDashboard]"
+          }
+        ]
+      },
+      {
+        "name": "tags",
+        "label": "Tags",
+        "elements": [
+          {
+            "name": "tagsByResource",
+            "type": "Microsoft.Common.TagsByResource",
+            "resources": [
+              "Microsoft.OperationalInsights/workspaces",
+              "Microsoft.Insights/dataCollectionRules",
+              "Microsoft.Insights/actionGroups",
+              "Microsoft.Insights/scheduledQueryRules"
+            ],
+            "toolTip": "Add tags to organize and track Azure resources"
           }
         ]
       }
@@ -333,8 +348,6 @@
     "outputs": {
       "location": "[location()]",
       "deploymentName": "[basics('deploymentNameBasics')]",
-      "useExistingResourceGroup": "[equals(steps('infrastructure').resourceGroupSection.resourceGroupOption, 'existing')]",
-      "existingResourceGroupName": "[if(equals(steps('infrastructure').resourceGroupSection.resourceGroupOption, 'existing'), steps('infrastructure').resourceGroupSection.existingResourceGroupName.name, '')]",
       "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'existing')]",
       "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'existing'), steps('infrastructure').logAnalyticsSection.existingLogAnalytics.id, '')]",
       "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'new'), steps('infrastructure').logAnalyticsSection.logAnalyticsWorkspaceName, split(steps('infrastructure').logAnalyticsSection.existingLogAnalytics.id, '/')[8])]",
@@ -354,7 +367,7 @@
       "emailRecipients": "[steps('notifications').emailRecipients]",
       "deployDashboard": "[steps('automation').deployDashboard]",
       "dashboardName": "[steps('automation').dashboardName]",
-      "tagsByResource": {}
+      "tagsByResource": "[steps('tags').tagsByResource]"
     }
   }
 }

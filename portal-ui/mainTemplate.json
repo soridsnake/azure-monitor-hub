@@ -1,285 +1,559 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
     "_generator": {
       "name": "bicep",
       "version": "0.28.1.47646",
-      "templateHash": "16097029071121018179"
+      "templateHash": "12536743032705614006"
     }
   },
   "parameters": {
     "deploymentName": {
-      "type": "string"
+      "type": "string",
+      "metadata": {
+        "description": "Deployment name"
+      }
     },
     "location": {
-      "type": "string"
-    },
-    "useExistingResourceGroup": {
-      "type": "bool",
-      "defaultValue": false
-    },
-    "existingResourceGroupName": {
       "type": "string",
-      "defaultValue": ""
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region"
+      }
     },
     "useExistingLogAnalytics": {
       "type": "bool",
-      "defaultValue": false
+      "defaultValue": false,
+      "metadata": {
+        "description": "Use existing Log Analytics"
+      }
     },
     "existingLogAnalyticsWorkspaceId": {
       "type": "string",
-      "defaultValue": ""
+      "defaultValue": "",
+      "metadata": {
+        "description": "Existing Log Analytics Workspace ID"
+      }
     },
     "logAnalyticsWorkspaceName": {
-      "type": "string"
+      "type": "string",
+      "metadata": {
+        "description": "Log Analytics Workspace name"
+      }
     },
     "retentionInDays": {
       "type": "int",
-      "defaultValue": 90
+      "defaultValue": 90,
+      "minValue": 30,
+      "maxValue": 730,
+      "metadata": {
+        "description": "Log retention in days"
+      }
     },
     "monitorExistingVMs": {
       "type": "bool",
-      "defaultValue": true
+      "defaultValue": false,
+      "metadata": {
+        "description": "Monitor existing VMs"
+      }
     },
     "selectedVMIds": {
       "type": "array",
-      "defaultValue": []
+      "defaultValue": [],
+      "metadata": {
+        "description": "Selected VM IDs"
+      }
     },
     "autoEnrollNewVMs": {
       "type": "bool",
-      "defaultValue": true
+      "defaultValue": true,
+      "metadata": {
+        "description": "Auto-enroll new VMs"
+      }
     },
     "enableCPUAlerts": {
       "type": "bool",
-      "defaultValue": true
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable CPU alerts"
+      }
     },
     "cpuThreshold": {
       "type": "int",
-      "defaultValue": 85
+      "defaultValue": 85,
+      "minValue": 50,
+      "maxValue": 100,
+      "metadata": {
+        "description": "CPU threshold"
+      }
     },
     "enableMemoryAlerts": {
       "type": "bool",
-      "defaultValue": true
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Memory alerts"
+      }
     },
     "memoryThreshold": {
       "type": "int",
-      "defaultValue": 85
+      "defaultValue": 85,
+      "minValue": 50,
+      "maxValue": 100,
+      "metadata": {
+        "description": "Memory threshold"
+      }
     },
     "enableDiskAlerts": {
       "type": "bool",
-      "defaultValue": true
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Disk alerts"
+      }
     },
     "diskThreshold": {
       "type": "int",
-      "defaultValue": 85
+      "defaultValue": 85,
+      "minValue": 50,
+      "maxValue": 100,
+      "metadata": {
+        "description": "Disk threshold"
+      }
     },
     "enableHeartbeatAlerts": {
       "type": "bool",
-      "defaultValue": true
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Heartbeat alerts"
+      }
     },
     "createActionGroup": {
       "type": "bool",
-      "defaultValue": true
+      "defaultValue": true,
+      "metadata": {
+        "description": "Create Action Group"
+      }
     },
     "actionGroupName": {
-      "type": "string"
+      "type": "string",
+      "metadata": {
+        "description": "Action Group name"
+      }
     },
     "emailRecipients": {
-      "type": "string"
+      "type": "string",
+      "metadata": {
+        "description": "Email recipients"
+      }
     },
     "deployDashboard": {
       "type": "bool",
-      "defaultValue": true
+      "defaultValue": true,
+      "metadata": {
+        "description": "Deploy dashboard"
+      }
     },
     "dashboardName": {
       "type": "string",
-      "defaultValue": "VM Monitoring Dashboard"
+      "defaultValue": "VM Monitoring Dashboard",
+      "metadata": {
+        "description": "Dashboard name"
+      }
     },
     "tagsByResource": {
       "type": "object",
-      "defaultValue": {}
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags by resource"
+      }
     }
   },
   "variables": {
-    "resourceGroupName": "[if(parameters('useExistingResourceGroup'), parameters('existingResourceGroupName'), format('rg-{0}', parameters('deploymentName')))]"
+    "workspaceName": "[if(parameters('useExistingLogAnalytics'), split(parameters('existingLogAnalyticsWorkspaceId'), '/')[8], parameters('logAnalyticsWorkspaceName'))]",
+    "workspaceId": "[if(parameters('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')))]"
   },
   "resources": [
     {
-      "type": "Microsoft.Resources/resourceGroups",
-      "apiVersion": "2021-04-01",
-      "name": "[variables('resourceGroupName')]",
+      "condition": "[not(parameters('useExistingLogAnalytics'))]",
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[parameters('logAnalyticsWorkspaceName')]",
       "location": "[parameters('location')]",
-      "condition": "[not(parameters('useExistingResourceGroup'))]",
-      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Resources/resourceGroups'), parameters('tagsByResource')['Microsoft.Resources/resourceGroups'], createObject())]"
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.OperationalInsights/workspaces'), parameters('tagsByResource')['Microsoft.OperationalInsights/workspaces'], createObject())]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": "[parameters('retentionInDays')]",
+        "features": {
+          "enableLogAccessUsingOnlyResourcePermissions": true
+        }
+      }
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2021-04-01",
-      "name": "nestedDeployment",
-      "resourceGroup": "[variables('resourceGroupName')]",
+      "type": "Microsoft.OperationsManagement/solutions",
+      "apiVersion": "2015-11-01-preview",
+      "name": "[format('VMInsights({0})', variables('workspaceName'))]",
+      "location": "[parameters('location')]",
+      "plan": {
+        "name": "[format('VMInsights({0})', variables('workspaceName'))]",
+        "publisher": "Microsoft",
+        "product": "OMSGallery/VMInsights",
+        "promotionCode": ""
+      },
       "properties": {
-        "mode": "Incremental",
-        "expressionEvaluationOptions": {
-          "scope": "Inner"
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "deploymentName": {
-              "type": "string"
-            },
-            "location": {
-              "type": "string"
-            },
-            "useExistingLogAnalytics": {
-              "type": "bool"
-            },
-            "existingLogAnalyticsWorkspaceId": {
-              "type": "string"
-            },
-            "logAnalyticsWorkspaceName": {
-              "type": "string"
-            },
-            "retentionInDays": {
-              "type": "int"
-            },
-            "monitorExistingVMs": {
-              "type": "bool"
-            },
-            "selectedVMIds": {
-              "type": "array"
-            },
-            "autoEnrollNewVMs": {
-              "type": "bool"
-            },
-            "enableCPUAlerts": {
-              "type": "bool"
-            },
-            "cpuThreshold": {
-              "type": "int"
-            },
-            "enableMemoryAlerts": {
-              "type": "bool"
-            },
-            "memoryThreshold": {
-              "type": "int"
-            },
-            "enableDiskAlerts": {
-              "type": "bool"
-            },
-            "diskThreshold": {
-              "type": "int"
-            },
-            "enableHeartbeatAlerts": {
-              "type": "bool"
-            },
-            "createActionGroup": {
-              "type": "bool"
-            },
-            "actionGroupName": {
-              "type": "string"
-            },
-            "emailRecipients": {
-              "type": "string"
-            },
-            "deployDashboard": {
-              "type": "bool"
-            },
-            "dashboardName": {
-              "type": "string"
-            },
-            "tagsByResource": {
-              "type": "object"
+        "workspaceResourceId": "[variables('workspaceId')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/dataCollectionRules",
+      "apiVersion": "2022-06-01",
+      "name": "[format('dcr-{0}-windows', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], createObject())]",
+      "properties": {
+        "dataSources": {
+          "performanceCounters": [
+            {
+              "name": "perfCounterDataSource",
+              "samplingFrequencyInSeconds": 60,
+              "streams": [
+                "Microsoft-Perf"
+              ],
+              "counterSpecifiers": [
+                "\\Processor(_Total)\\% Processor Time",
+                "\\Memory\\% Committed Bytes In Use",
+                "\\LogicalDisk(_Total)\\% Free Space",
+                "\\Network Interface(*)\\Bytes Total/sec"
+              ]
             }
-          },
-          "resources": [],
-          "outputs": {
-            "message": {
-              "type": "string",
-              "value": "Deployment initiated successfully"
+          ],
+          "windowsEventLogs": [
+            {
+              "name": "eventLogsDataSource",
+              "streams": [
+                "Microsoft-Event"
+              ],
+              "xPathQueries": [
+                "System!*[System[(Level=1 or Level=2 or Level=3)]]",
+                "Application!*[System[(Level=1 or Level=2 or Level=3)]]"
+              ]
+            }
+          ]
+        },
+        "destinations": {
+          "logAnalytics": [
+            {
+              "name": "la-workspace",
+              "workspaceResourceId": "[variables('workspaceId')]"
+            }
+          ]
+        },
+        "dataFlows": [
+          {
+            "streams": [
+              "Microsoft-Perf",
+              "Microsoft-Event"
+            ],
+            "destinations": [
+              "la-workspace"
+            ]
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/dataCollectionRules",
+      "apiVersion": "2022-06-01",
+      "name": "[format('dcr-{0}-linux', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], createObject())]",
+      "properties": {
+        "dataSources": {
+          "performanceCounters": [
+            {
+              "name": "perfCounterDataSource",
+              "samplingFrequencyInSeconds": 60,
+              "streams": [
+                "Microsoft-Perf"
+              ],
+              "counterSpecifiers": [
+                "Processor(*)\\% Processor Time",
+                "Memory(*)\\% Used Memory",
+                "Logical Disk(*)\\% Used Space",
+                "Network(*)\\Total Bytes Transmitted"
+              ]
+            }
+          ],
+          "syslog": [
+            {
+              "name": "syslogDataSource",
+              "streams": [
+                "Microsoft-Syslog"
+              ],
+              "facilityNames": [
+                "auth",
+                "authpriv",
+                "cron",
+                "daemon",
+                "kern",
+                "syslog"
+              ],
+              "logLevels": [
+                "Error",
+                "Critical",
+                "Alert",
+                "Emergency"
+              ]
+            }
+          ]
+        },
+        "destinations": {
+          "logAnalytics": [
+            {
+              "name": "la-workspace",
+              "workspaceResourceId": "[variables('workspaceId')]"
+            }
+          ]
+        },
+        "dataFlows": [
+          {
+            "streams": [
+              "Microsoft-Perf",
+              "Microsoft-Syslog"
+            ],
+            "destinations": [
+              "la-workspace"
+            ]
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('createActionGroup')]",
+      "type": "Microsoft.Insights/actionGroups",
+      "apiVersion": "2023-01-01",
+      "name": "[parameters('actionGroupName')]",
+      "location": "global",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/actionGroups'), parameters('tagsByResource')['Microsoft.Insights/actionGroups'], createObject())]",
+      "properties": {
+        "copy": [
+          {
+            "name": "emailReceivers",
+            "count": "[length(split(parameters('emailRecipients'), ';'))]",
+            "input": {
+              "name": "[format('email-{0}', uniqueString(split(parameters('emailRecipients'), ';')[copyIndex('emailReceivers')]))]",
+              "emailAddress": "[trim(split(parameters('emailRecipients'), ';')[copyIndex('emailReceivers')])]",
+              "useCommonAlertSchema": true
             }
           }
+        ],
+        "groupShortName": "[take(parameters('actionGroupName'), 12)]",
+        "enabled": true
+      }
+    },
+    {
+      "condition": "[parameters('enableCPUAlerts')]",
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-03-15-preview",
+      "name": "[format('alert-{0}-cpu', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], createObject())]",
+      "properties": {
+        "displayName": "[format('High CPU Usage - {0}', parameters('deploymentName'))]",
+        "description": "[format('Alert when CPU usage exceeds {0}%', parameters('cpuThreshold'))]",
+        "severity": 2,
+        "enabled": true,
+        "evaluationFrequency": "PT5M",
+        "scopes": [
+          "[variables('workspaceId')]"
+        ],
+        "windowSize": "PT5M",
+        "criteria": {
+          "allOf": [
+            {
+              "query": "[format('Perf | where ObjectName == \"Processor\" and CounterName == \"% Processor Time\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('cpuThreshold'))]",
+              "timeAggregation": "Average",
+              "dimensions": [],
+              "operator": "GreaterThan",
+              "threshold": "[parameters('cpuThreshold')]",
+              "failingPeriods": {
+                "numberOfEvaluationPeriods": 1,
+                "minFailingPeriodsToAlert": 1
+              }
+            }
+          ]
         },
-        "parameters": {
-          "deploymentName": {
-            "value": "[parameters('deploymentName')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "useExistingLogAnalytics": {
-            "value": "[parameters('useExistingLogAnalytics')]"
-          },
-          "existingLogAnalyticsWorkspaceId": {
-            "value": "[parameters('existingLogAnalyticsWorkspaceId')]"
-          },
-          "logAnalyticsWorkspaceName": {
-            "value": "[parameters('logAnalyticsWorkspaceName')]"
-          },
-          "retentionInDays": {
-            "value": "[parameters('retentionInDays')]"
-          },
-          "monitorExistingVMs": {
-            "value": "[parameters('monitorExistingVMs')]"
-          },
-          "selectedVMIds": {
-            "value": "[parameters('selectedVMIds')]"
-          },
-          "autoEnrollNewVMs": {
-            "value": "[parameters('autoEnrollNewVMs')]"
-          },
-          "enableCPUAlerts": {
-            "value": "[parameters('enableCPUAlerts')]"
-          },
-          "cpuThreshold": {
-            "value": "[parameters('cpuThreshold')]"
-          },
-          "enableMemoryAlerts": {
-            "value": "[parameters('enableMemoryAlerts')]"
-          },
-          "memoryThreshold": {
-            "value": "[parameters('memoryThreshold')]"
-          },
-          "enableDiskAlerts": {
-            "value": "[parameters('enableDiskAlerts')]"
-          },
-          "diskThreshold": {
-            "value": "[parameters('diskThreshold')]"
-          },
-          "enableHeartbeatAlerts": {
-            "value": "[parameters('enableHeartbeatAlerts')]"
-          },
-          "createActionGroup": {
-            "value": "[parameters('createActionGroup')]"
-          },
-          "actionGroupName": {
-            "value": "[parameters('actionGroupName')]"
-          },
-          "emailRecipients": {
-            "value": "[parameters('emailRecipients')]"
-          },
-          "deployDashboard": {
-            "value": "[parameters('deployDashboard')]"
-          },
-          "dashboardName": {
-            "value": "[parameters('dashboardName')]"
-          },
-          "tagsByResource": {
-            "value": "[parameters('tagsByResource')]"
-          }
+        "actions": {
+          "actionGroups": "[if(parameters('createActionGroup'), createArray(resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))), createArray())]"
         }
       },
       "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+        "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]",
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+        "[resourceId('Microsoft.OperationsManagement/solutions', format('VMInsights({0})', variables('workspaceName')))]"
+      ]
+    },
+    {
+      "condition": "[parameters('enableMemoryAlerts')]",
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-03-15-preview",
+      "name": "[format('alert-{0}-memory', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], createObject())]",
+      "properties": {
+        "displayName": "[format('High Memory Usage - {0}', parameters('deploymentName'))]",
+        "description": "[format('Alert when Memory usage exceeds {0}%', parameters('memoryThreshold'))]",
+        "severity": 2,
+        "enabled": true,
+        "evaluationFrequency": "PT5M",
+        "scopes": [
+          "[variables('workspaceId')]"
+        ],
+        "windowSize": "PT5M",
+        "criteria": {
+          "allOf": [
+            {
+              "query": "[format('Perf | where ObjectName == \"Memory\" and CounterName == \"% Committed Bytes In Use\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
+              "timeAggregation": "Average",
+              "dimensions": [],
+              "operator": "GreaterThan",
+              "threshold": "[parameters('memoryThreshold')]",
+              "failingPeriods": {
+                "numberOfEvaluationPeriods": 1,
+                "minFailingPeriodsToAlert": 1
+              }
+            }
+          ]
+        },
+        "actions": {
+          "actionGroups": "[if(parameters('createActionGroup'), createArray(resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))), createArray())]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]",
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+        "[resourceId('Microsoft.OperationsManagement/solutions', format('VMInsights({0})', variables('workspaceName')))]"
+      ]
+    },
+    {
+      "condition": "[parameters('enableDiskAlerts')]",
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-03-15-preview",
+      "name": "[format('alert-{0}-disk', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], createObject())]",
+      "properties": {
+        "displayName": "[format('Low Disk Space - {0}', parameters('deploymentName'))]",
+        "description": "[format('Alert when Disk free space is below {0}%', sub(100, parameters('diskThreshold')))]",
+        "severity": 2,
+        "enabled": true,
+        "evaluationFrequency": "PT15M",
+        "scopes": [
+          "[variables('workspaceId')]"
+        ],
+        "windowSize": "PT15M",
+        "criteria": {
+          "allOf": [
+            {
+              "query": "[format('Perf | where ObjectName == \"LogicalDisk\" and CounterName == \"% Free Space\" | where CounterValue < {0} | summarize AggregatedValue = avg(CounterValue) by Computer, InstanceName, bin(TimeGenerated, 15m)', sub(100, parameters('diskThreshold')))]",
+              "timeAggregation": "Average",
+              "dimensions": [],
+              "operator": "LessThan",
+              "threshold": "[sub(100, parameters('diskThreshold'))]",
+              "failingPeriods": {
+                "numberOfEvaluationPeriods": 1,
+                "minFailingPeriodsToAlert": 1
+              }
+            }
+          ]
+        },
+        "actions": {
+          "actionGroups": "[if(parameters('createActionGroup'), createArray(resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))), createArray())]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]",
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+        "[resourceId('Microsoft.OperationsManagement/solutions', format('VMInsights({0})', variables('workspaceName')))]"
+      ]
+    },
+    {
+      "condition": "[parameters('enableHeartbeatAlerts')]",
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-03-15-preview",
+      "name": "[format('alert-{0}-heartbeat', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], createObject())]",
+      "properties": {
+        "displayName": "[format('VM Heartbeat Missing - {0}', parameters('deploymentName'))]",
+        "description": "Alert when VM stops sending heartbeat",
+        "severity": 1,
+        "enabled": true,
+        "evaluationFrequency": "PT5M",
+        "scopes": [
+          "[variables('workspaceId')]"
+        ],
+        "windowSize": "PT15M",
+        "criteria": {
+          "allOf": [
+            {
+              "query": "Heartbeat | summarize LastHeartbeat = max(TimeGenerated) by Computer | where LastHeartbeat < ago(10m)",
+              "timeAggregation": "Count",
+              "dimensions": [],
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "failingPeriods": {
+                "numberOfEvaluationPeriods": 1,
+                "minFailingPeriodsToAlert": 1
+              }
+            }
+          ]
+        },
+        "actions": {
+          "actionGroups": "[if(parameters('createActionGroup'), createArray(resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))), createArray())]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]",
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+        "[resourceId('Microsoft.OperationsManagement/solutions', format('VMInsights({0})', variables('workspaceName')))]"
       ]
     }
   ],
   "outputs": {
     "resourceGroupName": {
       "type": "string",
-      "value": "[variables('resourceGroupName')]"
+      "value": "[resourceGroup().name]"
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "value": "[variables('workspaceId')]"
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "value": "[variables('workspaceName')]"
+    },
+    "dcrWindowsId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-windows', parameters('deploymentName')))]"
+    },
+    "dcrLinuxId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-linux', parameters('deploymentName')))]"
+    },
+    "actionGroupId": {
+      "type": "string",
+      "value": "[if(parameters('createActionGroup'), resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName')), '')]"
     }
   }
 }
