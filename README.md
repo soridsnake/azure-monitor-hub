@@ -2,7 +2,7 @@
 
 **Complete Azure VM Monitoring Solution** - Deploy enterprise-grade monitoring for your Azure Virtual Machines in minutes with automated alerts, dashboards, and compliance reporting.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2Fdeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2Fdeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2FcreateUiDefinition.json%3Fv%3D5)
 
 
 
@@ -168,7 +168,7 @@ Run this to check if you have everything:
 
 Click the button below and follow the wizard:
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2Fdeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2Fdeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2FcreateUiDefinition.json%3Fv%3D5)
 
 
 
