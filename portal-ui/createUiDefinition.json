@@ -24,38 +24,130 @@
         "label": "Infrastructure",
         "elements": [
           {
-            "name": "resourceGroupInfo",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": true,
-            "options": {
-              "icon": "Info",
-              "text": "A new Resource Group will be created automatically based on your deployment name."
-            }
+            "name": "resourceGroupSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Resource Group",
+            "elements": [
+              {
+                "name": "resourceGroupOption",
+                "type": "Microsoft.Common.OptionsGroup",
+                "label": "Resource Group",
+                "defaultValue": "Create new",
+                "toolTip": "Create a new Resource Group or use an existing one",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Create new",
+                      "value": "new"
+                    },
+                    {
+                      "label": "Use existing",
+                      "value": "existing"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "existingResourceGroupName",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select Resource Group",
+                "resourceType": "Microsoft.Resources/resourceGroups",
+                "toolTip": "Select an existing Resource Group",
+                "visible": "[equals(steps('infrastructure').resourceGroupSection.resourceGroupOption, 'existing')]"
+              }
+            ]
           },
           {
-            "name": "logAnalyticsWorkspaceName",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Log Analytics Workspace Name",
-            "defaultValue": "[concat('law-', basics('deploymentNameBasics'))]",
-            "toolTip": "Name for the Log Analytics Workspace",
-            "constraints": {
-              "required": true,
-              "regex": "^[a-zA-Z0-9-]{4,63}$",
-              "validationMessage": "Only alphanumeric and hyphens. Length 4-63."
-            }
+            "name": "logAnalyticsSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Log Analytics Workspace",
+            "elements": [
+              {
+                "name": "logAnalyticsOption",
+                "type": "Microsoft.Common.OptionsGroup",
+                "label": "Log Analytics Workspace",
+                "defaultValue": "Create new",
+                "toolTip": "Create a new workspace or use an existing one",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Create new",
+                      "value": "new"
+                    },
+                    {
+                      "label": "Use existing",
+                      "value": "existing"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "logAnalyticsWorkspaceName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Workspace Name",
+                "defaultValue": "[concat('law-', basics('deploymentNameBasics'))]",
+                "toolTip": "Name for the new Log Analytics Workspace",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{4,63}$",
+                  "validationMessage": "Only alphanumeric and hyphens. Length 4-63."
+                },
+                "visible": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'new')]"
+              },
+              {
+                "name": "existingLogAnalytics",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select Workspace",
+                "resourceType": "Microsoft.OperationalInsights/workspaces",
+                "toolTip": "Select an existing Log Analytics Workspace",
+                "visible": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'existing')]"
+              },
+              {
+                "name": "retentionInDays",
+                "type": "Microsoft.Common.Slider",
+                "min": 30,
+                "max": 730,
+                "label": "Log Retention Days",
+                "subLabel": "days",
+                "defaultValue": 90,
+                "toolTip": "Number of days to retain log data",
+                "constraints": {
+                  "required": true
+                },
+                "visible": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'new')]"
+              }
+            ]
           },
           {
-            "name": "retentionInDays",
-            "type": "Microsoft.Common.Slider",
-            "min": 30,
-            "max": 730,
-            "label": "Log Retention Days",
-            "subLabel": "days",
-            "defaultValue": 90,
-            "toolTip": "Number of days to retain log data",
-            "constraints": {
-              "required": true
-            }
+            "name": "vmSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Virtual Machines",
+            "elements": [
+              {
+                "name": "monitorVMs",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Monitor existing Virtual Machines now",
+                "defaultValue": false,
+                "toolTip": "Select existing VMs to monitor immediately"
+              },
+              {
+                "name": "selectedVMs",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select Virtual Machines",
+                "resourceType": "Microsoft.Compute/virtualMachines",
+                "toolTip": "Select VMs to monitor (Azure Monitor Agent will be installed)",
+                "visible": "[steps('infrastructure').vmSection.monitorVMs]"
+              },
+              {
+                "name": "vmInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": true,
+                "options": {
+                  "icon": "Info",
+                  "text": "New VMs will be automatically enrolled via Azure Policy if enabled in the next steps."
+                }
+              }
+            ]
           }
         ]
       },
@@ -64,58 +156,96 @@
         "label": "Monitoring",
         "elements": [
           {
-            "name": "enableCPUAlerts",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Enable CPU alerts",
-            "defaultValue": true
+            "name": "cpuSection",
+            "type": "Microsoft.Common.Section",
+            "label": "CPU Monitoring",
+            "elements": [
+              {
+                "name": "enableCPUAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable CPU alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "cpuThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 50,
+                "max": 100,
+                "label": "CPU Threshold",
+                "subLabel": "%",
+                "defaultValue": 85,
+                "constraints": {
+                  "required": true
+                },
+                "visible": "[steps('monitoring').cpuSection.enableCPUAlerts]"
+              }
+            ]
           },
           {
-            "name": "cpuThreshold",
-            "type": "Microsoft.Common.Slider",
-            "min": 50,
-            "max": 100,
-            "label": "CPU Threshold %",
-            "defaultValue": 85,
-            "constraints": {
-              "required": true
-            },
-            "visible": "[steps('monitoring').enableCPUAlerts]"
+            "name": "memorySection",
+            "type": "Microsoft.Common.Section",
+            "label": "Memory Monitoring",
+            "elements": [
+              {
+                "name": "enableMemoryAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Memory alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "memoryThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 50,
+                "max": 100,
+                "label": "Memory Threshold",
+                "subLabel": "%",
+                "defaultValue": 85,
+                "constraints": {
+                  "required": true
+                },
+                "visible": "[steps('monitoring').memorySection.enableMemoryAlerts]"
+              }
+            ]
           },
           {
-            "name": "enableMemoryAlerts",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Enable Memory alerts",
-            "defaultValue": true
+            "name": "diskSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Disk Monitoring",
+            "elements": [
+              {
+                "name": "enableDiskAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Disk alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "diskThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 50,
+                "max": 100,
+                "label": "Disk Threshold",
+                "subLabel": "%",
+                "defaultValue": 85,
+                "constraints": {
+                  "required": true
+                },
+                "visible": "[steps('monitoring').diskSection.enableDiskAlerts]"
+              }
+            ]
           },
           {
-            "name": "memoryThreshold",
-            "type": "Microsoft.Common.Slider",
-            "min": 50,
-            "max": 100,
-            "label": "Memory Threshold %",
-            "defaultValue": 85,
-            "constraints": {
-              "required": true
-            },
-            "visible": "[steps('monitoring').enableMemoryAlerts]"
-          },
-          {
-            "name": "enableDiskAlerts",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Enable Disk alerts",
-            "defaultValue": true
-          },
-          {
-            "name": "diskThreshold",
-            "type": "Microsoft.Common.Slider",
-            "min": 50,
-            "max": 100,
-            "label": "Disk Threshold %",
-            "defaultValue": 85,
-            "constraints": {
-              "required": true
-            },
-            "visible": "[steps('monitoring').enableDiskAlerts]"
+            "name": "heartbeatSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Heartbeat Monitoring",
+            "elements": [
+              {
+                "name": "enableHeartbeatAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable VM Heartbeat alerts",
+                "defaultValue": true,
+                "toolTip": "Alert when VM stops sending heartbeat (offline)"
+              }
+            ]
           }
         ]
       },
@@ -145,6 +275,54 @@
               "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(;[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})*$",
               "validationMessage": "Enter valid email addresses separated by semicolons"
             }
+          },
+          {
+            "name": "notificationInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "icon": "Info",
+              "text": "Recipients will receive email notifications when alerts are triggered. You can add SMS or webhook notifications after deployment."
+            }
+          }
+        ]
+      },
+      {
+        "name": "automation",
+        "label": "Automation",
+        "elements": [
+          {
+            "name": "autoEnrollNewVMs",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Auto-enroll new Virtual Machines",
+            "defaultValue": true,
+            "toolTip": "Automatically install Azure Monitor Agent on new VMs using Azure Policy"
+          },
+          {
+            "name": "autoEnrollInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[steps('automation').autoEnrollNewVMs]",
+            "options": {
+              "icon": "Info",
+              "text": "Azure Policy will automatically install Azure Monitor Agent on new VMs and associate them with Data Collection Rules. Policy remediation may take 15-30 minutes."
+            }
+          },
+          {
+            "name": "deployDashboard",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Deploy monitoring dashboard",
+            "defaultValue": true,
+            "toolTip": "Create an Azure Workbook dashboard with Nagios-style VM health visualization"
+          },
+          {
+            "name": "dashboardName",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Dashboard Name",
+            "defaultValue": "VM Monitoring Dashboard",
+            "constraints": {
+              "required": true
+            },
+            "visible": "[steps('automation').deployDashboard]"
           }
         ]
       }
@@ -152,27 +330,27 @@
     "outputs": {
       "location": "[location()]",
       "deploymentName": "[basics('deploymentNameBasics')]",
-      "useExistingResourceGroup": false,
-      "existingResourceGroupName": "",
-      "useExistingLogAnalytics": false,
-      "existingLogAnalyticsWorkspaceId": "",
-      "logAnalyticsWorkspaceName": "[steps('infrastructure').logAnalyticsWorkspaceName]",
-      "retentionInDays": "[steps('infrastructure').retentionInDays]",
-      "monitorExistingVMs": false,
-      "selectedVMIds": [],
-      "autoEnrollNewVMs": true,
-      "enableCPUAlerts": "[steps('monitoring').enableCPUAlerts]",
-      "cpuThreshold": "[steps('monitoring').cpuThreshold]",
-      "enableMemoryAlerts": "[steps('monitoring').enableMemoryAlerts]",
-      "memoryThreshold": "[steps('monitoring').memoryThreshold]",
-      "enableDiskAlerts": "[steps('monitoring').enableDiskAlerts]",
-      "diskThreshold": "[steps('monitoring').diskThreshold]",
-      "enableHeartbeatAlerts": true,
+      "useExistingResourceGroup": "[equals(steps('infrastructure').resourceGroupSection.resourceGroupOption, 'existing')]",
+      "existingResourceGroupName": "[if(equals(steps('infrastructure').resourceGroupSection.resourceGroupOption, 'existing'), steps('infrastructure').resourceGroupSection.existingResourceGroupName.name, '')]",
+      "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'existing')]",
+      "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'existing'), steps('infrastructure').logAnalyticsSection.existingLogAnalytics.id, '')]",
+      "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'new'), steps('infrastructure').logAnalyticsSection.logAnalyticsWorkspaceName, split(steps('infrastructure').logAnalyticsSection.existingLogAnalytics.id, '/')[8])]",
+      "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsSection.logAnalyticsOption, 'new'), steps('infrastructure').logAnalyticsSection.retentionInDays, 90)]",
+      "monitorExistingVMs": "[steps('infrastructure').vmSection.monitorVMs]",
+      "selectedVMIds": "[if(steps('infrastructure').vmSection.monitorVMs, steps('infrastructure').vmSection.selectedVMs.ids, createArray())]",
+      "autoEnrollNewVMs": "[steps('automation').autoEnrollNewVMs]",
+      "enableCPUAlerts": "[steps('monitoring').cpuSection.enableCPUAlerts]",
+      "cpuThreshold": "[steps('monitoring').cpuSection.cpuThreshold]",
+      "enableMemoryAlerts": "[steps('monitoring').memorySection.enableMemoryAlerts]",
+      "memoryThreshold": "[steps('monitoring').memorySection.memoryThreshold]",
+      "enableDiskAlerts": "[steps('monitoring').diskSection.enableDiskAlerts]",
+      "diskThreshold": "[steps('monitoring').diskSection.diskThreshold]",
+      "enableHeartbeatAlerts": "[steps('monitoring').heartbeatSection.enableHeartbeatAlerts]",
       "createActionGroup": true,
       "actionGroupName": "[steps('notifications').actionGroupName]",
       "emailRecipients": "[steps('notifications').emailRecipients]",
-      "deployDashboard": true,
-      "dashboardName": "VM Monitoring Dashboard",
+      "deployDashboard": "[steps('automation').deployDashboard]",
+      "dashboardName": "[steps('automation').dashboardName]",
       "tagsByResource": {}
     }
   }
