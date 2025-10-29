@@ -5,185 +5,202 @@
     "_generator": {
       "name": "bicep",
       "version": "0.28.1.47646",
-      "templateHash": "Azure-Monitor-Hub-Portal-Wrapper"
+      "templateHash": "16097029071121018179"
     }
   },
   "parameters": {
     "deploymentName": {
-      "type": "string",
-      "metadata": {
-        "description": "Deployment name"
-      }
+      "type": "string"
     },
     "location": {
-      "type": "string",
-      "metadata": {
-        "description": "Azure region for resources"
-      }
+      "type": "string"
     },
     "useExistingResourceGroup": {
       "type": "bool",
-      "defaultValue": false,
-      "metadata": {
-        "description": "Use existing Resource Group"
-      }
+      "defaultValue": false
     },
     "existingResourceGroupName": {
       "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Existing Resource Group name"
-      }
+      "defaultValue": ""
     },
     "useExistingLogAnalytics": {
       "type": "bool",
-      "defaultValue": false,
-      "metadata": {
-        "description": "Use existing Log Analytics Workspace"
-      }
+      "defaultValue": false
     },
     "existingLogAnalyticsWorkspaceId": {
       "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Existing Log Analytics Workspace ID"
-      }
+      "defaultValue": ""
     },
     "logAnalyticsWorkspaceName": {
-      "type": "string",
-      "metadata": {
-        "description": "Log Analytics Workspace name"
-      }
+      "type": "string"
     },
     "retentionInDays": {
       "type": "int",
-      "defaultValue": 90,
-      "metadata": {
-        "description": "Log retention in days"
-      }
+      "defaultValue": 90
     },
     "monitorExistingVMs": {
       "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Monitor existing VMs"
-      }
+      "defaultValue": true
     },
     "selectedVMIds": {
       "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Selected VM IDs to monitor"
-      }
+      "defaultValue": []
     },
     "autoEnrollNewVMs": {
       "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Auto-enroll new VMs"
-      }
+      "defaultValue": true
     },
     "enableCPUAlerts": {
       "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Enable CPU alerts"
-      }
+      "defaultValue": true
     },
     "cpuThreshold": {
       "type": "int",
-      "defaultValue": 85,
-      "metadata": {
-        "description": "CPU threshold percentage"
-      }
+      "defaultValue": 85
     },
     "enableMemoryAlerts": {
       "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Enable Memory alerts"
-      }
+      "defaultValue": true
     },
     "memoryThreshold": {
       "type": "int",
-      "defaultValue": 85,
-      "metadata": {
-        "description": "Memory threshold percentage"
-      }
+      "defaultValue": 85
     },
     "enableDiskAlerts": {
       "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Enable Disk alerts"
-      }
+      "defaultValue": true
     },
     "diskThreshold": {
       "type": "int",
-      "defaultValue": 85,
-      "metadata": {
-        "description": "Disk threshold percentage"
-      }
+      "defaultValue": 85
     },
     "enableHeartbeatAlerts": {
       "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Enable Heartbeat alerts"
-      }
+      "defaultValue": true
     },
     "createActionGroup": {
       "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Create Action Group"
-      }
+      "defaultValue": true
     },
     "actionGroupName": {
-      "type": "string",
-      "metadata": {
-        "description": "Action Group name"
-      }
+      "type": "string"
     },
     "emailRecipients": {
-      "type": "string",
-      "metadata": {
-        "description": "Email recipients (semicolon separated)"
-      }
+      "type": "string"
     },
     "deployDashboard": {
       "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Deploy monitoring dashboard"
-      }
+      "defaultValue": true
     },
     "dashboardName": {
       "type": "string",
-      "defaultValue": "VM Monitoring Dashboard",
-      "metadata": {
-        "description": "Dashboard name"
-      }
+      "defaultValue": "VM Monitoring Dashboard"
     },
     "tagsByResource": {
       "type": "object",
-      "defaultValue": {},
-      "metadata": {
-        "description": "Tags for resources"
-      }
+      "defaultValue": {}
     }
+  },
+  "variables": {
+    "resourceGroupName": "[if(parameters('useExistingResourceGroup'), parameters('existingResourceGroupName'), format('rg-{0}', parameters('deploymentName')))]"
   },
   "resources": [
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "[concat('MonitorHub-', parameters('deploymentName'))]",
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2021-04-01",
+      "name": "[variables('resourceGroupName')]",
       "location": "[parameters('location')]",
+      "condition": "[not(parameters('useExistingResourceGroup'))]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Resources/resourceGroups'), parameters('tagsByResource')['Microsoft.Resources/resourceGroups'], createObject())]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "nestedDeployment",
+      "resourceGroup": "[variables('resourceGroupName')]",
       "properties": {
         "mode": "Incremental",
-        "templateLink": {
-          "uri": "https://raw.githubusercontent.com/soridsnake/azure-monitor-hub/main/workload/arm/deploy.json",
-          "contentVersion": "1.0.0.0"
+        "expressionEvaluationOptions": {
+          "scope": "Inner"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "deploymentName": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "useExistingLogAnalytics": {
+              "type": "bool"
+            },
+            "existingLogAnalyticsWorkspaceId": {
+              "type": "string"
+            },
+            "logAnalyticsWorkspaceName": {
+              "type": "string"
+            },
+            "retentionInDays": {
+              "type": "int"
+            },
+            "monitorExistingVMs": {
+              "type": "bool"
+            },
+            "selectedVMIds": {
+              "type": "array"
+            },
+            "autoEnrollNewVMs": {
+              "type": "bool"
+            },
+            "enableCPUAlerts": {
+              "type": "bool"
+            },
+            "cpuThreshold": {
+              "type": "int"
+            },
+            "enableMemoryAlerts": {
+              "type": "bool"
+            },
+            "memoryThreshold": {
+              "type": "int"
+            },
+            "enableDiskAlerts": {
+              "type": "bool"
+            },
+            "diskThreshold": {
+              "type": "int"
+            },
+            "enableHeartbeatAlerts": {
+              "type": "bool"
+            },
+            "createActionGroup": {
+              "type": "bool"
+            },
+            "actionGroupName": {
+              "type": "string"
+            },
+            "emailRecipients": {
+              "type": "string"
+            },
+            "deployDashboard": {
+              "type": "bool"
+            },
+            "dashboardName": {
+              "type": "string"
+            },
+            "tagsByResource": {
+              "type": "object"
+            }
+          },
+          "resources": [],
+          "outputs": {
+            "message": {
+              "type": "string",
+              "value": "Deployment initiated successfully"
+            }
+          }
         },
         "parameters": {
           "deploymentName": {
@@ -191,12 +208,6 @@
           },
           "location": {
             "value": "[parameters('location')]"
-          },
-          "useExistingResourceGroup": {
-            "value": "[parameters('useExistingResourceGroup')]"
-          },
-          "existingResourceGroupName": {
-            "value": "[parameters('existingResourceGroupName')]"
           },
           "useExistingLogAnalytics": {
             "value": "[parameters('useExistingLogAnalytics')]"
@@ -259,13 +270,16 @@
             "value": "[parameters('tagsByResource')]"
           }
         }
-      }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
     }
   ],
   "outputs": {
-    "deploymentName": {
+    "resourceGroupName": {
       "type": "string",
-      "value": "[reference(concat('MonitorHub-', parameters('deploymentName'))).outputs.resourceGroupName.value]"
+      "value": "[variables('resourceGroupName')]"
     }
   }
 }
