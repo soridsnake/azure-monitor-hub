@@ -144,7 +144,7 @@
                     "subscription": "onBasics"
                   }
                 },
-                "toolTip": "Select VMs to monitor. Azure Monitor Agent (AMA) will be installed automatically.",
+                "toolTip": "Select VMs to monitor. Azure Monitor Agent (AMA) will be installed and associated with Data Collection Rules.",
                 "visible": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected')]"
               },
               {
@@ -153,16 +153,42 @@
                 "visible": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
                 "options": {
                   "icon": "Warning",
-                  "text": "All Virtual Machines in the subscription will be monitored. Azure Monitor Agent (AMA) will be installed on all VMs and they will be associated with Data Collection Rules."
+                  "text": "All Virtual Machines in the subscription will be monitored. This requires Azure Policy to be enabled in the Automation tab. Azure Monitor Agent (AMA) will be installed on all VMs and they will be associated with Data Collection Rules."
                 }
+              },
+              {
+                "name": "dcrNameWindows",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Data Collection Rule Name (Windows)",
+                "defaultValue": "[concat('dcr-', basics('deploymentName'), '-windows')]",
+                "toolTip": "Name for the Windows Data Collection Rule",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{3,64}$",
+                  "validationMessage": "Alphanumeric and hyphens. Length 3-64."
+                },
+                "visible": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]"
+              },
+              {
+                "name": "dcrNameLinux",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Data Collection Rule Name (Linux)",
+                "defaultValue": "[concat('dcr-', basics('deploymentName'), '-linux')]",
+                "toolTip": "Name for the Linux Data Collection Rule",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{3,64}$",
+                  "validationMessage": "Alphanumeric and hyphens. Length 3-64."
+                },
+                "visible": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]"
               },
               {
                 "name": "autoEnrollInfo",
                 "type": "Microsoft.Common.InfoBox",
-                "visible": true,
+                "visible": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]",
                 "options": {
                   "icon": "Info",
-                  "text": "Azure Monitor Agent (AMA) will be automatically installed on selected VMs and associated with Data Collection Rules for performance metrics and logs collection."
+                  "text": "Data Collection Rules will be created and associated with selected VMs. Azure Monitor Agent (AMA) installation requires Azure Policy or manual deployment."
                 }
               }
             ]
@@ -285,20 +311,36 @@
         "label": "Automation",
         "elements": [
           {
-            "name": "autoEnrollNewVMs",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Automatically enroll new Virtual Machines",
-            "defaultValue": true,
-            "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new VMs and associate them with Data Collection Rules"
-          },
-          {
-            "name": "policyInfo",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": "[steps('automation').autoEnrollNewVMs]",
-            "options": {
-              "icon": "Info",
-              "text": "Azure Policy will be deployed to automatically install Azure Monitor Agent (AMA) on new Virtual Machines and associate them with the appropriate Data Collection Rules. Policy remediation may take 15-30 minutes to complete."
-            }
+            "name": "policySection",
+            "type": "Microsoft.Common.Section",
+            "label": "Azure Policy",
+            "elements": [
+              {
+                "name": "enableAzurePolicy",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Azure Policy for automatic VM enrollment",
+                "defaultValue": false,
+                "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new VMs and associate them with Data Collection Rules"
+              },
+              {
+                "name": "policyInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[steps('automation').policySection.enableAzurePolicy]",
+                "options": {
+                  "icon": "Info",
+                  "text": "Azure Policy will be deployed to automatically install Azure Monitor Agent (AMA) on new Virtual Machines and associate them with the appropriate Data Collection Rules. Policy remediation may take 15-30 minutes to complete."
+                }
+              },
+              {
+                "name": "policyDisabledInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[not(steps('automation').policySection.enableAzurePolicy)]",
+                "options": {
+                  "icon": "Warning",
+                  "text": "Azure Policy is disabled. New VMs will NOT be automatically enrolled. You will need to manually install Azure Monitor Agent and associate Data Collection Rules."
+                }
+              }
+            ]
           }
         ]
       }
@@ -313,7 +355,10 @@
       "monitorExistingVMs": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]",
       "monitorAllVMs": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
       "selectedVMIds": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), steps('infrastructure').vmMonitoringSection.selectedVMs.ids, parse('[]'))]",
-      "autoEnrollNewVMs": "[steps('automation').autoEnrollNewVMs]",
+      "dcrNameWindows": "[if(not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none')), steps('infrastructure').vmMonitoringSection.dcrNameWindows, concat('dcr-', basics('deploymentName'), '-windows'))]",
+      "dcrNameLinux": "[if(not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none')), steps('infrastructure').vmMonitoringSection.dcrNameLinux, concat('dcr-', basics('deploymentName'), '-linux'))]",
+      "enableAzurePolicy": "[steps('automation').policySection.enableAzurePolicy]",
+      "autoEnrollNewVMs": "[steps('automation').policySection.enableAzurePolicy]",
       "enableCPUAlerts": "[steps('monitoring').enabledAlertsSection.enableCPUAlerts]",
       "cpuThreshold": "[steps('monitoring').alertThresholdsSection.cpuThreshold]",
       "enableMemoryAlerts": "[steps('monitoring').enabledAlertsSection.enableMemoryAlerts]",

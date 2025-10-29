@@ -51,11 +51,32 @@
         "description": "Log retention in days"
       }
     },
+    "dcrNameWindows": {
+      "type": "string",
+      "defaultValue": "[format('dcr-{0}-windows', parameters('deploymentName'))]",
+      "metadata": {
+        "description": "Data Collection Rule name for Windows"
+      }
+    },
+    "dcrNameLinux": {
+      "type": "string",
+      "defaultValue": "[format('dcr-{0}-linux', parameters('deploymentName'))]",
+      "metadata": {
+        "description": "Data Collection Rule name for Linux"
+      }
+    },
     "monitorExistingVMs": {
       "type": "bool",
       "defaultValue": false,
       "metadata": {
         "description": "Monitor existing VMs"
+      }
+    },
+    "monitorAllVMs": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Monitor all VMs in subscription"
       }
     },
     "selectedVMIds": {
@@ -70,6 +91,13 @@
       "defaultValue": true,
       "metadata": {
         "description": "Auto-enroll new VMs"
+      }
+    },
+    "enableAzurePolicy": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable Azure Policy for automatic enrollment"
       }
     },
     "enableCPUAlerts": {
@@ -211,7 +239,7 @@
     {
       "type": "Microsoft.Insights/dataCollectionRules",
       "apiVersion": "2022-06-01",
-      "name": "[format('dcr-{0}-windows', parameters('deploymentName'))]",
+      "name": "[parameters('dcrNameWindows')]",
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], createObject())]",
       "properties": {
@@ -271,7 +299,7 @@
     {
       "type": "Microsoft.Insights/dataCollectionRules",
       "apiVersion": "2022-06-01",
-      "name": "[format('dcr-{0}-linux', parameters('deploymentName'))]",
+      "name": "[parameters('dcrNameLinux')]",
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], createObject())]",
       "properties": {
@@ -336,6 +364,24 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "dcrAssociationsWindows",
+        "count": "[if(and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs'))), length(parameters('selectedVMIds')), 0)]"
+      },
+      "condition": "[and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs')))]",
+      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+      "apiVersion": "2022-06-01",
+      "scope": "[format('Microsoft.Compute/virtualMachines/{0}', last(split(parameters('selectedVMIds')[copyIndex()], '/')))]",
+      "name": "[format('{0}-dcr-association', last(split(parameters('selectedVMIds')[copyIndex()], '/')))]",
+      "properties": {
+        "dataCollectionRuleId": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]"
       ]
     },
     {
@@ -545,11 +591,11 @@
     },
     "dcrWindowsId": {
       "type": "string",
-      "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-windows', parameters('deploymentName')))]"
+      "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
     },
     "dcrLinuxId": {
       "type": "string",
-      "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-linux', parameters('deploymentName')))]"
+      "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]"
     },
     "actionGroupId": {
       "type": "string",
