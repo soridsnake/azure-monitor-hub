@@ -276,7 +276,8 @@
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], createObject())]",
       "properties": {
         "dataSources": {
-          "performanceCounters": [
+          "per
+          formanceCounters": [
             {
               "name": "perfCounterDataSource",
               "samplingFrequencyInSeconds": 60,
