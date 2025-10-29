@@ -166,7 +166,7 @@ Run this to check if you have everything:
 
 Click the button below and follow the wizard:
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FYOUR-ORG%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2FmainTemplate.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2FYOUR-ORG%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fworkload%2Farm%2Fdeploy.json)
 
 **Steps:**
 1. Click "Deploy to Azure"
