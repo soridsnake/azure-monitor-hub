@@ -3,39 +3,13 @@
   "handler": "Microsoft.Azure.CreateUIDef",
   "version": "0.1.2-preview",
   "parameters": {
-    "config": {
-      "isWizard": true,
-      "basics": {
-        "description": "**Azure Monitor Hub** - Deploy enterprise-grade VM monitoring in minutes with automated alerts, dashboards, and compliance reporting.",
-        "subscription": {
-          "constraints": {
-            "validations": []
-          },
-          "resourceProviders": [
-            "Microsoft.OperationalInsights",
-            "Microsoft.Insights"
-          ]
-        },
-        "location": {
-          "label": "Region",
-          "toolTip": "Azure region for deployment",
-          "resourceTypes": [
-            "Microsoft.OperationalInsights/workspaces"
-          ],
-          "allowedValues": []
-        },
-        "resourceGroup": {
-          "allowExisting": true
-        }
-      }
-    },
     "basics": [
       {
-        "name": "deploymentName",
+        "name": "deploymentNameBasics",
         "type": "Microsoft.Common.TextBox",
         "label": "Deployment Name",
         "defaultValue": "",
-        "toolTip": "Unique name for this monitoring deployment (e.g., 'prod-monitoring', 'client-monitoring')",
+        "toolTip": "Unique name for this monitoring deployment",
         "placeholder": "prod-monitoring",
         "constraints": {
           "required": true,
@@ -50,145 +24,37 @@
         "label": "Infrastructure",
         "elements": [
           {
-            "name": "resourceGroupSection",
-            "type": "Microsoft.Common.Section",
-            "label": "Resource Group Configuration",
-            "elements": [
-              {
-                "name": "resourceGroupSelection",
-                "type": "Microsoft.Common.OptionsGroup",
-                "label": "Resource Group",
-                "defaultValue": "Create new",
-                "toolTip": "Choose to create a new Resource Group or use an existing one",
-                "constraints": {
-                  "allowedValues": [
-                    {
-                      "label": "Create new",
-                      "value": "new"
-                    },
-                    {
-                      "label": "Use existing",
-                      "value": "existing"
-                    }
-                  ],
-                  "required": true
-                }
-              },
-              {
-                "name": "existingResourceGroup",
-                "type": "Microsoft.Solutions.ResourceSelector",
-                "label": "Select Resource Group",
-                "resourceType": "Microsoft.Resources/resourceGroups",
-                "toolTip": "Select an existing Resource Group",
-                "constraints": {
-                  "required": true
-                },
-                "visible": "[equals(steps('infrastructure').resourceGroupSection.resourceGroupSelection, 'existing')]"
-              }
-            ]
-          },
-          {
-            "name": "logAnalyticsSection",
-            "type": "Microsoft.Common.Section",
-            "label": "Log Analytics Workspace Configuration",
-            "elements": [
-              {
-                "name": "logAnalyticsSelection",
-                "type": "Microsoft.Common.OptionsGroup",
-                "label": "Log Analytics Workspace",
-                "defaultValue": "Create new",
-                "toolTip": "Choose to create a new Log Analytics Workspace or use an existing one",
-                "constraints": {
-                  "allowedValues": [
-                    {
-                      "label": "Create new",
-                      "value": "new"
-                    },
-                    {
-                      "label": "Use existing",
-                      "value": "existing"
-                    }
-                  ],
-                  "required": true
-                }
-              },
-              {
-                "name": "logAnalyticsWorkspaceName",
-                "type": "Microsoft.Common.TextBox",
-                "label": "Log Analytics Workspace Name",
-                "defaultValue": "[concat('law-', basics('deploymentName'))]",
-                "toolTip": "Name for the new Log Analytics Workspace",
-                "placeholder": "law-monitoring",
-                "constraints": {
-                  "required": true,
-                  "regex": "^[a-zA-Z0-9-]{4,63}$",
-                  "validationMessage": "Only alphanumeric characters and hyphens. Length 4-63 characters."
-                },
-                "visible": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsSelection, 'new')]"
-              },
-              {
-                "name": "existingLogAnalytics",
-                "type": "Microsoft.Solutions.ResourceSelector",
-                "label": "Select Log Analytics Workspace",
-                "resourceType": "Microsoft.OperationalInsights/workspaces",
-                "toolTip": "Select an existing Log Analytics Workspace",
-                "constraints": {
-                  "required": true
-                },
-                "visible": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsSelection, 'existing')]"
-              },
-              {
-                "name": "retentionInDays",
-                "type": "Microsoft.Common.Slider",
-                "min": 30,
-                "max": 730,
-                "label": "Log Retention (Days)",
-                "subLabel": "days",
-                "defaultValue": 90,
-                "toolTip": "Number of days to retain log data. Higher retention = higher costs.",
-                "constraints": {
-                  "required": true
-                },
-                "visible": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsSelection, 'new')]"
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "name": "vmSelection",
-        "label": "Virtual Machines",
-        "elements": [
-          {
-            "name": "monitorExistingVMs",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Monitor existing Virtual Machines",
-            "toolTip": "Enable monitoring for selected existing VMs",
-            "defaultValue": true
-          },
-          {
-            "name": "selectedVMs",
-            "type": "Microsoft.Solutions.ResourceSelector",
-            "label": "Select Virtual Machines to Monitor",
-            "resourceType": "Microsoft.Compute/virtualMachines",
-            "options": {
-              "filter": {
-                "subscription": "onBasics"
-              }
-            },
-            "toolTip": "Select one or more VMs to monitor. Azure Monitor Agent will be installed automatically.",
-            "constraints": {
-              "required": false
-            },
-            "visible": "[steps('vmSelection').monitorExistingVMs]"
-          },
-          {
-            "name": "autoEnrollInfo",
+            "name": "resourceGroupInfo",
             "type": "Microsoft.Common.InfoBox",
             "visible": true,
             "options": {
               "icon": "Info",
-              "text": "New VMs can be automatically enrolled using Azure Policy (configured in the Automation step)."
+              "text": "A new Resource Group will be created automatically based on your deployment name."
+            }
+          },
+          {
+            "name": "logAnalyticsWorkspaceName",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Log Analytics Workspace Name",
+            "defaultValue": "[concat('law-', basics('deploymentNameBasics'))]",
+            "toolTip": "Name for the Log Analytics Workspace",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-zA-Z0-9-]{4,63}$",
+              "validationMessage": "Only alphanumeric and hyphens. Length 4-63."
+            }
+          },
+          {
+            "name": "retentionInDays",
+            "type": "Microsoft.Common.Slider",
+            "min": 30,
+            "max": 730,
+            "label": "Log Retention Days",
+            "subLabel": "days",
+            "defaultValue": 90,
+            "toolTip": "Number of days to retain log data",
+            "constraints": {
+              "required": true
             }
           }
         ]
@@ -198,102 +64,58 @@
         "label": "Monitoring",
         "elements": [
           {
-            "name": "cpuSection",
-            "type": "Microsoft.Common.Section",
-            "label": "CPU Monitoring",
-            "elements": [
-              {
-                "name": "enableCPUAlerts",
-                "type": "Microsoft.Common.CheckBox",
-                "label": "Enable CPU alerts",
-                "defaultValue": true,
-                "toolTip": "Alert when CPU usage exceeds threshold"
-              },
-              {
-                "name": "cpuThreshold",
-                "type": "Microsoft.Common.Slider",
-                "min": 50,
-                "max": 100,
-                "label": "CPU Alert Threshold",
-                "subLabel": "%",
-                "defaultValue": 85,
-                "toolTip": "Alert when CPU usage exceeds this percentage",
-                "constraints": {
-                  "required": true
-                },
-                "visible": "[steps('monitoring').cpuSection.enableCPUAlerts]"
-              }
-            ]
+            "name": "enableCPUAlerts",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Enable CPU alerts",
+            "defaultValue": true
           },
           {
-            "name": "memorySection",
-            "type": "Microsoft.Common.Section",
-            "label": "Memory Monitoring",
-            "elements": [
-              {
-                "name": "enableMemoryAlerts",
-                "type": "Microsoft.Common.CheckBox",
-                "label": "Enable Memory alerts",
-                "defaultValue": true,
-                "toolTip": "Alert when Memory usage exceeds threshold"
-              },
-              {
-                "name": "memoryThreshold",
-                "type": "Microsoft.Common.Slider",
-                "min": 50,
-                "max": 100,
-                "label": "Memory Alert Threshold",
-                "subLabel": "%",
-                "defaultValue": 85,
-                "toolTip": "Alert when Memory usage exceeds this percentage",
-                "constraints": {
-                  "required": true
-                },
-                "visible": "[steps('monitoring').memorySection.enableMemoryAlerts]"
-              }
-            ]
+            "name": "cpuThreshold",
+            "type": "Microsoft.Common.Slider",
+            "min": 50,
+            "max": 100,
+            "label": "CPU Threshold %",
+            "defaultValue": 85,
+            "constraints": {
+              "required": true
+            },
+            "visible": "[steps('monitoring').enableCPUAlerts]"
           },
           {
-            "name": "diskSection",
-            "type": "Microsoft.Common.Section",
-            "label": "Disk Monitoring",
-            "elements": [
-              {
-                "name": "enableDiskAlerts",
-                "type": "Microsoft.Common.CheckBox",
-                "label": "Enable Disk alerts",
-                "defaultValue": true,
-                "toolTip": "Alert when Disk usage exceeds threshold"
-              },
-              {
-                "name": "diskThreshold",
-                "type": "Microsoft.Common.Slider",
-                "min": 50,
-                "max": 100,
-                "label": "Disk Alert Threshold",
-                "subLabel": "%",
-                "defaultValue": 85,
-                "toolTip": "Alert when Disk usage exceeds this percentage",
-                "constraints": {
-                  "required": true
-                },
-                "visible": "[steps('monitoring').diskSection.enableDiskAlerts]"
-              }
-            ]
+            "name": "enableMemoryAlerts",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Enable Memory alerts",
+            "defaultValue": true
           },
           {
-            "name": "heartbeatSection",
-            "type": "Microsoft.Common.Section",
-            "label": "Heartbeat Monitoring",
-            "elements": [
-              {
-                "name": "enableHeartbeatAlerts",
-                "type": "Microsoft.Common.CheckBox",
-                "label": "Enable VM Heartbeat alerts",
-                "defaultValue": true,
-                "toolTip": "Alert when VM stops sending heartbeat (offline)"
-              }
-            ]
+            "name": "memoryThreshold",
+            "type": "Microsoft.Common.Slider",
+            "min": 50,
+            "max": 100,
+            "label": "Memory Threshold %",
+            "defaultValue": 85,
+            "constraints": {
+              "required": true
+            },
+            "visible": "[steps('monitoring').enableMemoryAlerts]"
+          },
+          {
+            "name": "enableDiskAlerts",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Enable Disk alerts",
+            "defaultValue": true
+          },
+          {
+            "name": "diskThreshold",
+            "type": "Microsoft.Common.Slider",
+            "min": 50,
+            "max": 100,
+            "label": "Disk Threshold %",
+            "defaultValue": 85,
+            "constraints": {
+              "required": true
+            },
+            "visible": "[steps('monitoring').enableDiskAlerts]"
           }
         ]
       },
@@ -302,135 +124,56 @@
         "label": "Notifications",
         "elements": [
           {
-            "name": "createActionGroup",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Create Action Group for notifications",
-            "defaultValue": true,
-            "toolTip": "Action Group sends notifications when alerts fire"
-          },
-          {
             "name": "actionGroupName",
             "type": "Microsoft.Common.TextBox",
             "label": "Action Group Name",
-            "defaultValue": "[concat('ag-', basics('deploymentName'))]",
-            "toolTip": "Name for the Action Group",
-            "placeholder": "ag-monitoring",
+            "defaultValue": "[concat('ag-', basics('deploymentNameBasics'))]",
             "constraints": {
               "required": true,
               "regex": "^[a-zA-Z0-9-]{3,64}$",
-              "validationMessage": "Only alphanumeric characters and hyphens. Length 3-64 characters."
-            },
-            "visible": "[steps('notifications').createActionGroup]"
+              "validationMessage": "Only alphanumeric and hyphens. Length 3-64."
+            }
           },
           {
             "name": "emailRecipients",
             "type": "Microsoft.Common.TextBox",
             "label": "Email Recipients",
-            "defaultValue": "",
-            "toolTip": "Email addresses to receive alerts (semicolon separated for multiple)",
             "placeholder": "admin@company.com;ops@company.com",
+            "toolTip": "Semicolon-separated email addresses",
             "constraints": {
               "required": true,
               "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(;[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})*$",
               "validationMessage": "Enter valid email addresses separated by semicolons"
-            },
-            "visible": "[steps('notifications').createActionGroup]"
-          },
-          {
-            "name": "notificationInfo",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": "[steps('notifications').createActionGroup]",
-            "options": {
-              "icon": "Info",
-              "text": "Recipients will receive email notifications when alerts are triggered. You can add SMS or webhook notifications after deployment."
             }
-          }
-        ]
-      },
-      {
-        "name": "automation",
-        "label": "Automation",
-        "elements": [
-          {
-            "name": "autoEnrollNewVMs",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Auto-enroll new Virtual Machines",
-            "defaultValue": true,
-            "toolTip": "Automatically install Azure Monitor Agent on new VMs using Azure Policy"
-          },
-          {
-            "name": "autoEnrollInfo",
-            "type": "Microsoft.Common.InfoBox",
-            "visible": "[steps('automation').autoEnrollNewVMs]",
-            "options": {
-              "icon": "Info",
-              "text": "Azure Policy will automatically install Azure Monitor Agent on new VMs and associate them with Data Collection Rules. Policy remediation may take 15-30 minutes to complete."
-            }
-          },
-          {
-            "name": "deployDashboard",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Deploy monitoring dashboard",
-            "defaultValue": true,
-            "toolTip": "Create an Azure Workbook dashboard with Nagios-style VM health visualization"
-          },
-          {
-            "name": "dashboardName",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Dashboard Name",
-            "defaultValue": "VM Monitoring Dashboard",
-            "toolTip": "Display name for the monitoring dashboard",
-            "constraints": {
-              "required": true
-            },
-            "visible": "[steps('automation').deployDashboard]"
-          }
-        ]
-      },
-      {
-        "name": "tags",
-        "label": "Tags",
-        "elements": [
-          {
-            "name": "tagsByResource",
-            "type": "Microsoft.Common.TagsByResource",
-            "resources": [
-              "Microsoft.Resources/resourceGroups",
-              "Microsoft.OperationalInsights/workspaces",
-              "Microsoft.Insights/dataCollectionRules",
-              "Microsoft.Insights/actionGroups",
-              "Microsoft.Insights/scheduledQueryRules",
-              "Microsoft.Insights/workbooks"
-            ]
           }
         ]
       }
     ],
     "outputs": {
       "location": "[location()]",
-      "deploymentName": "[basics('deploymentName')]",
-      "useExistingResourceGroup": "[equals(steps('infrastructure').resourceGroupSection.resourceGroupSelection, 'existing')]",
-      "existingResourceGroupName": "[if(equals(steps('infrastructure').resourceGroupSection.resourceGroupSelection, 'existing'), steps('infrastructure').resourceGroupSection.existingResourceGroup.name, '')]",
-      "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsSection.logAnalyticsSelection, 'existing')]",
-      "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsSection.logAnalyticsSelection, 'existing'), steps('infrastructure').logAnalyticsSection.existingLogAnalytics.id, '')]",
-      "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsSection.logAnalyticsSelection, 'new'), steps('infrastructure').logAnalyticsSection.logAnalyticsWorkspaceName, split(steps('infrastructure').logAnalyticsSection.existingLogAnalytics.id, '/')[8])]",
-      "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsSection.logAnalyticsSelection, 'new'), steps('infrastructure').logAnalyticsSection.retentionInDays, 90)]",
-      "monitorExistingVMs": "[steps('vmSelection').monitorExistingVMs]",
-      "selectedVMIds": "[if(steps('vmSelection').monitorExistingVMs, steps('vmSelection').selectedVMs, createArray())]",
-      "autoEnrollNewVMs": "[steps('automation').autoEnrollNewVMs]",
-      "enableCPUAlerts": "[steps('monitoring').cpuSection.enableCPUAlerts]",
-      "cpuThreshold": "[steps('monitoring').cpuSection.cpuThreshold]",
-      "enableMemoryAlerts": "[steps('monitoring').memorySection.enableMemoryAlerts]",
-      "memoryThreshold": "[steps('monitoring').memorySection.memoryThreshold]",
-      "enableDiskAlerts": "[steps('monitoring').diskSection.enableDiskAlerts]",
-      "diskThreshold": "[steps('monitoring').diskSection.diskThreshold]",
-      "enableHeartbeatAlerts": "[steps('monitoring').heartbeatSection.enableHeartbeatAlerts]",
-      "createActionGroup": "[steps('notifications').createActionGroup]",
+      "deploymentName": "[basics('deploymentNameBasics')]",
+      "useExistingResourceGroup": false,
+      "existingResourceGroupName": "",
+      "useExistingLogAnalytics": false,
+      "existingLogAnalyticsWorkspaceId": "",
+      "logAnalyticsWorkspaceName": "[steps('infrastructure').logAnalyticsWorkspaceName]",
+      "retentionInDays": "[steps('infrastructure').retentionInDays]",
+      "monitorExistingVMs": false,
+      "selectedVMIds": [],
+      "autoEnrollNewVMs": true,
+      "enableCPUAlerts": "[steps('monitoring').enableCPUAlerts]",
+      "cpuThreshold": "[steps('monitoring').cpuThreshold]",
+      "enableMemoryAlerts": "[steps('monitoring').enableMemoryAlerts]",
+      "memoryThreshold": "[steps('monitoring').memoryThreshold]",
+      "enableDiskAlerts": "[steps('monitoring').enableDiskAlerts]",
+      "diskThreshold": "[steps('monitoring').diskThreshold]",
+      "enableHeartbeatAlerts": true,
+      "createActionGroup": true,
       "actionGroupName": "[steps('notifications').actionGroupName]",
       "emailRecipients": "[steps('notifications').emailRecipients]",
-      "deployDashboard": "[steps('automation').deployDashboard]",
-      "dashboardName": "[steps('automation').dashboardName]",
-      "tagsByResource": "[steps('tags').tagsByResource]"
+      "deployDashboard": true,
+      "dashboardName": "VM Monitoring Dashboard",
+      "tagsByResource": {}
     }
   }
 }
