@@ -24,6 +24,24 @@
         "label": "Infrastructure",
         "elements": [
           {
+            "name": "logAnalyticsOption",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Log Analytics Workspace",
+            "defaultValue": "Create new",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Create new",
+                  "value": "new"
+                },
+                {
+                  "label": "Use existing",
+                  "value": "existing"
+                }
+              ]
+            }
+          },
+          {
             "name": "logAnalyticsWorkspaceName",
             "type": "Microsoft.Common.TextBox",
             "label": "Log Analytics Workspace Name",
@@ -32,7 +50,15 @@
               "required": true,
               "regex": "^[a-zA-Z0-9-]{4,63}$",
               "validationMessage": "Alphanumeric and hyphens. Length 4-63."
-            }
+            },
+            "visible": "[equals(steps('infrastructure').logAnalyticsOption, 'new')]"
+          },
+          {
+            "name": "existingLogAnalytics",
+            "type": "Microsoft.Solutions.ResourceSelector",
+            "label": "Select Existing Workspace",
+            "resourceType": "Microsoft.OperationalInsights/workspaces",
+            "visible": "[equals(steps('infrastructure').logAnalyticsOption, 'existing')]"
           },
           {
             "name": "retentionInDays",
@@ -44,7 +70,8 @@
             "defaultValue": 90,
             "constraints": {
               "required": true
-            }
+            },
+            "visible": "[equals(steps('infrastructure').logAnalyticsOption, 'new')]"
           }
         ]
       },
@@ -78,12 +105,12 @@
     "outputs": {
       "location": "[location()]",
       "deploymentName": "[basics('deploymentName')]",
-      "logAnalyticsWorkspaceName": "[steps('infrastructure').logAnalyticsWorkspaceName]",
-      "retentionInDays": "[steps('infrastructure').retentionInDays]",
+      "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsOption, 'existing')]",
+      "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsOption, 'existing'), steps('infrastructure').existingLogAnalytics.id, '')]",
+      "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsOption, 'new'), steps('infrastructure').logAnalyticsWorkspaceName, split(steps('infrastructure').existingLogAnalytics.id, '/')[8])]",
+      "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsOption, 'new'), steps('infrastructure').retentionInDays, 90)]",
       "actionGroupName": "[steps('notifications').actionGroupName]",
       "emailRecipients": "[steps('notifications').emailRecipients]",
-      "useExistingLogAnalytics": false,
-      "existingLogAnalyticsWorkspaceId": "",
       "monitorExistingVMs": false,
       "selectedVMIds": [],
       "autoEnrollNewVMs": true,
