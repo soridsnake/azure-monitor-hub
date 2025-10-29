@@ -2,7 +2,7 @@
 
 **Complete Azure VM Monitoring Solution** - Deploy enterprise-grade monitoring for your Azure Virtual Machines in minutes with automated alerts, dashboards, and compliance reporting.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2FmainTemplate.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2FYOUR-ORG%2Fazure-monitor-hub%2Fmain%2Fportal-ui%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsoridsnake%2Fazure-monitor-hub%2Fmain%2Fworkload%2Farm%2Fdeploy.json)
 
 ---
 
@@ -186,7 +186,7 @@ Click the button below and follow the wizard:
 ### Option 2: PowerShell Script (Recommended for Automation)
 ```powershell
 # Clone repository
-git clone https://github.com/YOUR-ORG/azure-monitor-hub.git
+git clone https://github.com/soridsnake/azure-monitor-hub.git
 cd azure-monitor-hub
 
 # Validate prerequisites
@@ -430,8 +430,8 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/YOUR-ORG/azure-monitor-hub/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/YOUR-ORG/azure-monitor-hub/discussions)
+- **Issues**: [GitHub Issues](https://github.com/soridsnake/azure-monitor-hub/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/soridsnake/azure-monitor-hub/discussions)
 - **Email**: support@yourcompany.com
 
 ---
