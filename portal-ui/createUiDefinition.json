@@ -104,6 +104,152 @@
                 "visible": "[equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new')]"
               }
             ]
+          },
+          {
+            "name": "vmMonitoringSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Virtual Machine Monitoring",
+            "elements": [
+              {
+                "name": "monitorVMs",
+                "type": "Microsoft.Common.OptionsGroup",
+                "label": "Monitor Virtual Machines",
+                "defaultValue": "none",
+                "toolTip": "Choose whether to monitor existing VMs now",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Don't monitor VMs now (configure later)",
+                      "value": "none"
+                    },
+                    {
+                      "label": "Select specific VMs to monitor",
+                      "value": "selected"
+                    },
+                    {
+                      "label": "Monitor all VMs in subscription",
+                      "value": "all"
+                    }
+                  ],
+                  "required": true
+                }
+              },
+              {
+                "name": "selectedVMs",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select Virtual Machines",
+                "resourceType": "Microsoft.Compute/virtualMachines",
+                "options": {
+                  "filter": {
+                    "subscription": "onBasics"
+                  }
+                },
+                "toolTip": "Select VMs to monitor. Azure Monitor Agent (AMA) will be installed automatically.",
+                "visible": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected')]"
+              },
+              {
+                "name": "vmInfoBox",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
+                "options": {
+                  "icon": "Warning",
+                  "text": "All Virtual Machines in the subscription will be monitored. Azure Monitor Agent (AMA) will be installed on all VMs and they will be associated with Data Collection Rules."
+                }
+              },
+              {
+                "name": "autoEnrollInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": true,
+                "options": {
+                  "icon": "Info",
+                  "text": "Azure Monitor Agent (AMA) will be automatically installed on selected VMs and associated with Data Collection Rules for performance metrics and logs collection."
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "monitoring",
+        "label": "Monitoring",
+        "elements": [
+          {
+            "name": "alertThresholdsSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Alert Thresholds",
+            "elements": [
+              {
+                "name": "cpuThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 50,
+                "max": 100,
+                "label": "CPU Threshold",
+                "subLabel": "%",
+                "defaultValue": 85,
+                "toolTip": "Alert when CPU usage exceeds this percentage",
+                "constraints": {
+                  "required": true
+                }
+              },
+              {
+                "name": "memoryThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 50,
+                "max": 100,
+                "label": "Memory Threshold",
+                "subLabel": "%",
+                "defaultValue": 85,
+                "toolTip": "Alert when Memory usage exceeds this percentage",
+                "constraints": {
+                  "required": true
+                }
+              },
+              {
+                "name": "diskThreshold",
+                "type": "Microsoft.Common.Slider",
+                "min": 50,
+                "max": 100,
+                "label": "Disk Threshold",
+                "subLabel": "%",
+                "defaultValue": 85,
+                "toolTip": "Alert when Disk usage exceeds this percentage",
+                "constraints": {
+                  "required": true
+                }
+              }
+            ]
+          },
+          {
+            "name": "enabledAlertsSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Enabled Alerts",
+            "elements": [
+              {
+                "name": "enableCPUAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable CPU alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "enableMemoryAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Memory alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "enableDiskAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Disk alerts",
+                "defaultValue": true
+              },
+              {
+                "name": "enableHeartbeatAlerts",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable VM Heartbeat alerts",
+                "toolTip": "Alert when VM stops sending heartbeat (VM offline)",
+                "defaultValue": true
+              }
+            ]
           }
         ]
       },
@@ -124,11 +270,34 @@
             "name": "emailRecipients",
             "type": "Microsoft.Common.TextBox",
             "label": "Email Recipients",
-            "placeholder": "admin@company.com",
+            "placeholder": "admin@company.com;ops@company.com",
+            "toolTip": "Semicolon-separated email addresses for alert notifications",
             "constraints": {
               "required": true,
-              "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
-              "validationMessage": "Enter a valid email address"
+              "regex": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(;[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})*$",
+              "validationMessage": "Enter valid email addresses separated by semicolons"
+            }
+          }
+        ]
+      },
+      {
+        "name": "automation",
+        "label": "Automation",
+        "elements": [
+          {
+            "name": "autoEnrollNewVMs",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Automatically enroll new Virtual Machines",
+            "defaultValue": true,
+            "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new VMs and associate them with Data Collection Rules"
+          },
+          {
+            "name": "policyInfo",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[steps('automation').autoEnrollNewVMs]",
+            "options": {
+              "icon": "Info",
+              "text": "Azure Policy will be deployed to automatically install Azure Monitor Agent (AMA) on new Virtual Machines and associate them with the appropriate Data Collection Rules. Policy remediation may take 15-30 minutes to complete."
             }
           }
         ]
@@ -141,19 +310,20 @@
       "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'existing'), steps('infrastructure').logAnalyticsSection.existing.id, '')]",
       "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new'), steps('infrastructure').logAnalyticsSection.name, steps('infrastructure').logAnalyticsSection.existing.name)]",
       "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new'), steps('infrastructure').logAnalyticsSection.retentionInDays, 90)]",
+      "monitorExistingVMs": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]",
+      "monitorAllVMs": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
+      "selectedVMIds": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), steps('infrastructure').vmMonitoringSection.selectedVMs.ids, createArray())]",
+      "autoEnrollNewVMs": "[steps('automation').autoEnrollNewVMs]",
+      "enableCPUAlerts": "[steps('monitoring').enabledAlertsSection.enableCPUAlerts]",
+      "cpuThreshold": "[steps('monitoring').alertThresholdsSection.cpuThreshold]",
+      "enableMemoryAlerts": "[steps('monitoring').enabledAlertsSection.enableMemoryAlerts]",
+      "memoryThreshold": "[steps('monitoring').alertThresholdsSection.memoryThreshold]",
+      "enableDiskAlerts": "[steps('monitoring').enabledAlertsSection.enableDiskAlerts]",
+      "diskThreshold": "[steps('monitoring').alertThresholdsSection.diskThreshold]",
+      "enableHeartbeatAlerts": "[steps('monitoring').enabledAlertsSection.enableHeartbeatAlerts]",
+      "createActionGroup": true,
       "actionGroupName": "[steps('notifications').actionGroupName]",
       "emailRecipients": "[steps('notifications').emailRecipients]",
-      "monitorExistingVMs": false,
-      "selectedVMIds": [],
-      "autoEnrollNewVMs": true,
-      "enableCPUAlerts": true,
-      "cpuThreshold": 85,
-      "enableMemoryAlerts": true,
-      "memoryThreshold": 85,
-      "enableDiskAlerts": true,
-      "diskThreshold": 85,
-      "enableHeartbeatAlerts": true,
-      "createActionGroup": true,
       "deployDashboard": true,
       "dashboardName": "VM Monitoring Dashboard",
       "tagsByResource": {}
