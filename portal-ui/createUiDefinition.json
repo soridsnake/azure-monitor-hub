@@ -3,6 +3,21 @@
   "handler": "Microsoft.Azure.CreateUIDef",
   "version": "0.1.2-preview",
   "parameters": {
+    "config": {
+      "isWizard": true,
+      "basics": {
+        "description": "Deploy enterprise-grade VM monitoring with Azure Monitor Hub",
+        "resourceGroup": {
+          "allowExisting": true
+        },
+        "location": {
+          "visible": true,
+          "resourceTypes": [
+            "Microsoft.OperationalInsights/workspaces"
+          ]
+        }
+      }
+    },
     "basics": [
       {
         "name": "deploymentName",
