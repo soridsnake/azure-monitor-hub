@@ -3,6 +3,21 @@
   "handler": "Microsoft.Azure.CreateUIDef",
   "version": "0.1.2-preview",
   "parameters": {
+    "config": {
+      "isWizard": true,
+      "basics": {
+        "description": "Deploy enterprise-grade VM monitoring with Azure Monitor Hub",
+        "resourceGroup": {
+          "allowExisting": true
+        },
+        "location": {
+          "visible": true,
+          "resourceTypes": [
+            "Microsoft.OperationalInsights/workspaces"
+          ]
+        }
+      }
+    },
     "basics": [
       {
         "name": "deploymentName",
@@ -24,15 +39,54 @@
         "label": "Infrastructure",
         "elements": [
           {
+            "name": "logAnalyticsOption",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Log Analytics Workspace",
+            "defaultValue": "Create new",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Create new",
+                  "value": "new"
+                },
+                {
+                  "label": "Use existing",
+                  "value": "existing"
+                }
+              ]
+            }
+          },
+          {
             "name": "logAnalyticsWorkspaceName",
             "type": "Microsoft.Common.TextBox",
-            "label": "Log Analytics Workspace Name",
+            "label": "Workspace Name",
             "defaultValue": "[concat('law-', basics('deploymentName'))]",
             "constraints": {
               "required": true,
               "regex": "^[a-zA-Z0-9-]{4,63}$",
               "validationMessage": "Alphanumeric and hyphens. Length 4-63."
-            }
+            },
+            "visible": "[equals(steps('infrastructure').logAnalyticsOption, 'new')]"
+          },
+          {
+            "name": "existingLogAnalyticsSelector",
+            "type": "Microsoft.Solutions.ArmApiControl",
+            "request": {
+              "method": "GET",
+              "path": "[concat(subscription().id, '/providers/Microsoft.OperationalInsights/workspaces?api-version=2022-10-01')]"
+            },
+            "visible": false
+          },
+          {
+            "name": "existingLogAnalytics",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Select Existing Workspace",
+            "filter": true,
+            "constraints": {
+              "allowedValues": "[map(steps('infrastructure').existingLogAnalyticsSelector.value, (item) => parse(concat('{\"label\":\"', item.name, '\",\"value\":\"', item.id, '\"}')))]",
+              "required": true
+            },
+            "visible": "[equals(steps('infrastructure').logAnalyticsOption, 'existing')]"
           },
           {
             "name": "retentionInDays",
@@ -44,7 +98,8 @@
             "defaultValue": 90,
             "constraints": {
               "required": true
-            }
+            },
+            "visible": "[equals(steps('infrastructure').logAnalyticsOption, 'new')]"
           }
         ]
       },
@@ -78,12 +133,12 @@
     "outputs": {
       "location": "[location()]",
       "deploymentName": "[basics('deploymentName')]",
-      "logAnalyticsWorkspaceName": "[steps('infrastructure').logAnalyticsWorkspaceName]",
-      "retentionInDays": "[steps('infrastructure').retentionInDays]",
+      "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsOption, 'existing')]",
+      "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsOption, 'existing'), steps('infrastructure').existingLogAnalytics, '')]",
+      "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsOption, 'new'), steps('infrastructure').logAnalyticsWorkspaceName, split(steps('infrastructure').existingLogAnalytics, '/')[8])]",
+      "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsOption, 'new'), steps('infrastructure').retentionInDays, 90)]",
       "actionGroupName": "[steps('notifications').actionGroupName]",
       "emailRecipients": "[steps('notifications').emailRecipients]",
-      "useExistingLogAnalytics": false,
-      "existingLogAnalyticsWorkspaceId": "",
       "monitorExistingVMs": false,
       "selectedVMIds": [],
       "autoEnrollNewVMs": true,
