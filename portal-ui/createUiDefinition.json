@@ -44,7 +44,7 @@
           {
             "name": "logAnalyticsWorkspaceName",
             "type": "Microsoft.Common.TextBox",
-            "label": "Log Analytics Workspace Name",
+            "label": "Workspace Name",
             "defaultValue": "[concat('law-', basics('deploymentName'))]",
             "constraints": {
               "required": true,
@@ -54,10 +54,23 @@
             "visible": "[equals(steps('infrastructure').logAnalyticsOption, 'new')]"
           },
           {
+            "name": "existingLogAnalyticsSelector",
+            "type": "Microsoft.Solutions.ArmApiControl",
+            "request": {
+              "method": "GET",
+              "path": "[concat(subscription().id, '/providers/Microsoft.OperationalInsights/workspaces?api-version=2022-10-01')]"
+            },
+            "visible": false
+          },
+          {
             "name": "existingLogAnalytics",
-            "type": "Microsoft.Solutions.ResourceSelector",
+            "type": "Microsoft.Common.DropDown",
             "label": "Select Existing Workspace",
-            "resourceType": "Microsoft.OperationalInsights/workspaces",
+            "filter": true,
+            "constraints": {
+              "allowedValues": "[map(steps('infrastructure').existingLogAnalyticsSelector.value, (item) => parse(concat('{\"label\":\"', item.name, '\",\"value\":\"', item.id, '\"}')))]",
+              "required": true
+            },
             "visible": "[equals(steps('infrastructure').logAnalyticsOption, 'existing')]"
           },
           {
@@ -106,8 +119,8 @@
       "location": "[location()]",
       "deploymentName": "[basics('deploymentName')]",
       "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsOption, 'existing')]",
-      "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsOption, 'existing'), steps('infrastructure').existingLogAnalytics.id, '')]",
-      "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsOption, 'new'), steps('infrastructure').logAnalyticsWorkspaceName, split(steps('infrastructure').existingLogAnalytics.id, '/')[8])]",
+      "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsOption, 'existing'), steps('infrastructure').existingLogAnalytics, '')]",
+      "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsOption, 'new'), steps('infrastructure').logAnalyticsWorkspaceName, split(steps('infrastructure').existingLogAnalytics, '/')[8])]",
       "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsOption, 'new'), steps('infrastructure').retentionInDays, 90)]",
       "actionGroupName": "[steps('notifications').actionGroupName]",
       "emailRecipients": "[steps('notifications').emailRecipients]",
