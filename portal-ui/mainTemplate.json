@@ -1,25 +1,24 @@
 {
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.24.24.22086",
-      "templateHash": "1234567890"
+      "version": "0.28.1.47646",
+      "templateHash": "Azure-Monitor-Hub-Portal-Wrapper"
     }
   },
   "parameters": {
-    "location": {
-      "type": "string",
-      "defaultValue": "[deployment().location]",
-      "metadata": {
-        "description": "Azure region for resources"
-      }
-    },
     "deploymentName": {
       "type": "string",
       "metadata": {
         "description": "Deployment name"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resources"
       }
     },
     "useExistingResourceGroup": {
@@ -178,7 +177,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "[concat('monitor-hub-', parameters('deploymentName'))]",
+      "name": "[concat('MonitorHub-', parameters('deploymentName'))]",
       "location": "[parameters('location')]",
       "properties": {
         "mode": "Incremental",
@@ -264,13 +263,9 @@
     }
   ],
   "outputs": {
-    "resourceGroupName": {
+    "deploymentName": {
       "type": "string",
-      "value": "[if(parameters('useExistingResourceGroup'), parameters('existingResourceGroupName'), concat('rg-', parameters('deploymentName')))]"
-    },
-    "dashboardUrl": {
-      "type": "string",
-      "value": "[if(parameters('deployDashboard'), concat('https://portal.azure.com/#view/AppInsightsExtension/WorkbookViewerBlade'), '')]"
+      "value": "[reference(concat('MonitorHub-', parameters('deploymentName'))).outputs.resourceGroupName.value]"
     }
   }
 }
