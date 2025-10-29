@@ -1,3 +1,6 @@
+#disable-next-line use-resource-id-functions
+
+
 targetScope = 'subscription'
 
 @description('Policy name')
