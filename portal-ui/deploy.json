@@ -391,156 +391,181 @@
       ]
     },
     {
-  "condition": "[parameters('enableAzurePolicy')]",
-  "type": "Microsoft.Resources/deployments",
-  "apiVersion": "2022-09-01",
-  "name": "[format('policyAssignment-windows-{0}', parameters('deploymentName'))]",
-  "subscriptionId": "[subscription().subscriptionId]",
-  "location": "[parameters('location')]",
-  "properties": {
-    "mode": "Incremental",
-    "expressionEvaluationOptions": {
-      "scope": "inner"
-    },
-    "parameters": {
-      "policyAssignmentName": {
-        "value": "[format('{0}-windows', parameters('policyAssignmentName'))]"
-      },
-      "dcrResourceId": {
-        "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
-      },
-      "managedIdentityResourceId": {
-        "value": "[variables('managedIdentityId')]"
-      },
-      "location": {
-        "value": "[parameters('location')]"
-      }
-    },
-    "template": {
-      "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-      "contentVersion": "1.0.0.0",
-      "parameters": {
-        "policyAssignmentName": {
-          "type": "string"
+      "condition": "[parameters('enableAzurePolicy')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('policyAssignment-windows-{0}', parameters('deploymentName'))]",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
         },
-        "dcrResourceId": {
-          "type": "string"
-        },
-        "managedIdentityResourceId": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        }
-      },
-      "variables": {
-        "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/924bfe3a-762f-40e7-86dd-5c8b95eb09e6"
-      },
-      "resources": [
-        {
-          "type": "Microsoft.Authorization/policyAssignments",
-          "apiVersion": "2023-04-01",
-          "name": "[parameters('policyAssignmentName')]",
-          "location": "[parameters('location')]",
-          "identity": {
-            "type": "SystemAssigned"
+        "parameters": {
+          "policyAssignmentName": {
+            "value": "[format('{0}-windows', parameters('policyAssignmentName'))]"
           },
-          "properties": {
-            "displayName": "[format('Enable Azure Monitor for VMs - {0}', parameters('policyAssignmentName'))]",
-            "description": "Automatically configures Windows VMs with Azure Monitor Agent using user-assigned managed identity and associates with Data Collection Rule",
-            "enforcementMode": "Default",
-            "policyDefinitionId": "[variables('policyDefinitionId')]",
-            "parameters": {
-              "bringYourOwnUserAssignedManagedIdentity": {
-                "value": true
+          "dcrResourceId": {
+            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
+          },
+          "managedIdentityResourceId": {
+            "value": "[variables('managedIdentityId')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "policyAssignmentName": {
+              "type": "string"
+            },
+            "dcrResourceId": {
+              "type": "string"
+            },
+            "managedIdentityResourceId": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/924bfe3a-762f-40e7-86dd-5c8b95eb09e6"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('policyAssignmentName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "SystemAssigned"
               },
-              "scopeToSupportedImages": {
-                "value": false
-              },
-              "dcrResourceId": {
-                "value": "[parameters('dcrResourceId')]"
-              },
-              "restrictBringYourOwnUserAssignedIdentityToSubscription": {
-                "value": false
-              },
-              "userAssignedIdentityResourceId": {
-                "value": "[parameters('managedIdentityResourceId')]"
-              },
-              "userAssignedManagedIdentityResourceGroup": {
-                "value": "[split(parameters('managedIdentityResourceId'), '/')[4]]"
-              },
-              "userAssignedManagedIdentityName": {
-                "value": "[split(parameters('managedIdentityResourceId'), '/')[8]]"
+              "properties": {
+                "displayName": "[format('Enable Azure Monitor for VMs - {0}', parameters('policyAssignmentName'))]",
+                "description": "Automatically configures Windows and Linux VMs with Azure Monitor Agent using user-assigned managed identity and associates with Data Collection Rules",
+                "enforcementMode": "Default",
+                "policyDefinitionId": "[variables('policyDefinitionId')]",
+                "parameters": {
+                  "bringYourOwnUserAssignedManagedIdentity": {
+                    "value": true
+                  },
+                  "scopeToSupportedImages": {
+                    "value": false
+                  },
+                  "dcrResourceId": {
+                    "value": "[parameters('dcrResourceId')]"
+                  },
+                  "restrictBringYourOwnUserAssignedIdentityToSubscription": {
+                    "value": false
+                  },
+                  "userAssignedIdentityResourceId": {
+                    "value": "[parameters('managedIdentityResourceId')]"
+                  },
+                  "userAssignedManagedIdentityResourceGroup": {
+                    "value": "[split(parameters('managedIdentityResourceId'), '/')[4]]"
+                  },
+                  "userAssignedManagedIdentityName": {
+                    "value": "[split(parameters('managedIdentityResourceId'), '/')[8]]"
+                  }
+                },
+                "nonComplianceMessages": [
+                  {
+                    "message": "VMs must have Azure Monitor Agent installed with user-assigned managed identity and configured with the Data Collection Rule"
+                  }
+                ]
               }
             },
-            "nonComplianceMessages": [
-              {
-                "message": "Windows VMs must have Azure Monitor Agent installed with user-assigned managed identity and configured with the Data Collection Rule"
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'Contributor')]",
+              "dependsOn": [
+                "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+              ],
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
+                "principalType": "ServicePrincipal",
+                "description": "Allows policy assignment to deploy AMA and configure VMs"
               }
-            ]
-          }
-        },
-        {
-          "type": "Microsoft.Authorization/roleAssignments",
-          "apiVersion": "2022-04-01",
-          "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'Contributor')]",
-          "dependsOn": [
-            "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ManagedIdentityOperator')]",
+              "dependsOn": [
+                "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+              ],
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
+                "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
+                "principalType": "ServicePrincipal",
+                "description": "Allows policy to assign managed identity to VMs"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'VirtualMachineContributor')]",
+              "dependsOn": [
+                "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+              ],
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')]",
+                "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
+                "principalType": "ServicePrincipal",
+                "description": "Allows policy to manage VM extensions"
+              }
+            }
           ],
-          "properties": {
-            "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-            "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
-            "principalType": "ServicePrincipal",
-            "description": "Allows policy assignment to deploy AMA and configure VMs"
-          }
-        },
-        {
-          "type": "Microsoft.Authorization/roleAssignments",
-          "apiVersion": "2022-04-01",
-          "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ManagedIdentityOperator')]",
-          "dependsOn": [
-            "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-          ],
-          "properties": {
-            "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
-            "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
-            "principalType": "ServicePrincipal",
-            "description": "Allows policy to assign managed identity to VMs"
-          }
-        },
-        {
-          "type": "Microsoft.Authorization/roleAssignments",
-          "apiVersion": "2022-04-01",
-          "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'VirtualMachineContributor')]",
-          "dependsOn": [
-            "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-          ],
-          "properties": {
-            "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')]",
-            "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
-            "principalType": "ServicePrincipal",
-            "description": "Allows policy to manage VM extensions"
+          "outputs": {
+            "policyAssignmentId": {
+              "type": "string",
+              "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+            },
+            "policyAssignmentPrincipalId": {
+              "type": "string",
+              "value": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]"
+            }
           }
         }
-      ],
-      "outputs": {
-        "policyAssignmentId": {
-          "type": "string",
-          "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-        },
-        "policyAssignmentPrincipalId": {
-          "type": "string",
-          "value": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
+      ]
+    },
+    {
+      "condition": "[parameters('enableAzurePolicy')]",
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "[format('remediation-all-vms-{0}', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "kind": "AzurePowerShell",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', variables('managedIdentityId'))]": {}
         }
-      }
-    }
-  },
-  "dependsOn": [
-    "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
-    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-    "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-  ]
-},
+      },
+      "properties": {
+        "azPowerShellVersion": "10.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT30M",
+        "cleanupPreference": "OnSuccess",
+        "arguments": "[format('-PolicyAssignmentId \"{0}\"', if(parameters('enableAzurePolicy'), reference(format('policyAssignment-windows-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, ''))]",
+        "scriptContent": "param([string]$PolicyAssignmentId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"POLICY REMEDIATION - All VMs\"\nWrite-Host \"========================================\"\nWrite-Host \"Policy Assignment ID: $PolicyAssignmentId\"\nWrite-Host \"\"\n\nif ([string]::IsNullOrWhiteSpace($PolicyAssignmentId)) {\n    Write-Host \"No policy assignment ID provided\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Skipped'\n    exit 0\n}\n\n# Wait for policy to propagate\nWrite-Host \"Waiting 90 seconds for policy propagation...\"\nStart-Sleep -Seconds 90\n\n$remediations = @()\n$successCount = 0\n$failCount = 0\n\ntry {\n    # Get policy assignment details\n    $policyAssignment = Get-AzPolicyAssignment -Id $PolicyAssignmentId -ErrorAction Stop\n    \n    Write-Host \"Policy Assignment: $($policyAssignment.Name)\"\n    Write-Host \"Scope: $($policyAssignment.Properties.Scope)\"\n    Write-Host \"\"\n    \n    # Define all policy definition reference IDs to remediate\n    $policiesToRemediate = @(\n        @{ Name = \"Managed Identity Assignment\"; ReferenceId = \"AddUserAssignedManagedIdentity_VM\" },\n        @{ Name = \"Windows AMA Installation\"; ReferenceId = \"DeployAzureMonitoringAgentWindows\" },\n        @{ Name = \"Windows DCR Association\"; ReferenceId = \"DataCollectionRuleAssociation_Windows\" },\n        @{ Name = \"Linux AMA Installation\"; ReferenceId = \"DeployAzureMonitoringAgentLinux\" },\n        @{ Name = \"Linux DCR Association\"; ReferenceId = \"DataCollectionRuleAssociation_Linux\" }\n    )\n    \n    $policyNumber = 1\n    $totalPolicies = $policiesToRemediate.Count\n    \n    foreach ($policy in $policiesToRemediate) {\n        Write-Host \"[$policyNumber/$totalPolicies] Creating remediation for: $($policy.Name)\" -ForegroundColor Cyan\n        \n        try {\n            $remediationName = \"remediate-$($policy.ReferenceId.ToLower())-$(Get-Date -Format 'yyyyMMddHHmmss')\"\n            \n            $remediation = Start-AzPolicyRemediation `\n                -Name $remediationName `\n                -PolicyAssignmentId $PolicyAssignmentId `\n                -PolicyDefinitionReferenceId $policy.ReferenceId `\n                -ResourceDiscoveryMode ReEvaluateCompliance `\n                -ErrorAction Stop\n            \n            Write-Host \"  ✓ SUCCESS: $($remediation.Id)\" -ForegroundColor Green\n            $successCount++\n            \n            $remediations += @{ \n                Name = $policy.Name\n                ReferenceId = $policy.ReferenceId\n                RemediationId = $remediation.Id\n                Status = \"Created\" \n            }\n        }\n        catch {\n            Write-Host \"  ✗ FAILED: $($_.Exception.Message)\" -ForegroundColor Red\n            $failCount++\n            \n            $remediations += @{ \n                Name = $policy.Name\n                ReferenceId = $policy.ReferenceId\n                Error = $_.Exception.Message\n                Status = \"Failed\" \n            }\n        }\n        \n        Write-Host \"\"\n        $policyNumber++\n    }\n    \n    Write-Host \"========================================\"\n    Write-Host \"REMEDIATION SUMMARY\"\n    Write-Host \"========================================\"\n    Write-Host \"Total Policies: $totalPolicies\"\n    Write-Host \"✓ Successful: $successCount\" -ForegroundColor Green\n    if ($failCount -gt 0) {\n        Write-Host \"✗ Failed: $failCount\" -ForegroundColor Red\n    }\n    Write-Host \"========================================\"\n    Write-Host \"\"\n    \n    if ($successCount -gt 0) {\n        Write-Host \"Remediation tasks are running in the background\" -ForegroundColor Cyan\n        Write-Host \"Check Azure Portal > Policy > Compliance for progress\" -ForegroundColor Cyan\n        Write-Host \"VMs will be configured automatically within 15-30 minutes\" -ForegroundColor Cyan\n    }\n    \n    if ($failCount -gt 0) {\n        Write-Host \"\"\n        Write-Host \"Some remediation tasks failed. You can create them manually:\" -ForegroundColor Yellow\n        Write-Host \"  1. Go to Azure Portal > Policy > Compliance\"\n        Write-Host \"  2. Select the policy assignment\"\n        Write-Host \"  3. Click 'Create remediation task' for failed policies\"\n    }\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['remediations'] = $remediations | ConvertTo-Json -Compress\n    $DeploymentScriptOutputs['totalPolicies'] = $totalPolicies\n    $DeploymentScriptOutputs['successCount'] = $successCount\n    $DeploymentScriptOutputs['failCount'] = $failCount\n    $DeploymentScriptOutputs['status'] = 'Completed'\n}\ncatch {\n    Write-Host \"========================================\"\n    Write-Host \"ERROR\"\n    Write-Host \"========================================\"\n    Write-Host $_.Exception.Message -ForegroundColor Red\n    Write-Host \"\"\n    Write-Host \"You can create remediation tasks manually from Azure Portal\" -ForegroundColor Yellow\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Failed'\n    $DeploymentScriptOutputs['error'] = $_.Exception.Message\n}\n"
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-windows-{0}', parameters('deploymentName')))]"
+      ]
+    },
     {
       "condition": "[parameters('createActionGroup')]",
       "type": "Microsoft.Insights/actionGroups",
