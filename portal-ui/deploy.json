@@ -427,9 +427,16 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('Perf | where ObjectName == \"Processor\" and CounterName == \"% Processor Time\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('cpuThreshold'))]",
+                    "query": "[format('Perf | where ObjectName == \"Processor\" and CounterName == \"% Processor Time\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('cpuThreshold'))]",
               "timeAggregation": "Average",
-              "dimensions": [],
+              "metricMeasureColumn": "AggregatedValue",
+              "dimensions": [
+                {
+          "name": "Computer",
+          "operator": "Include",
+          "values": ["*"]
+        }
+              ],
               "operator": "GreaterThan",
               "threshold": "[parameters('cpuThreshold')]",
               "failingPeriods": {
@@ -469,9 +476,16 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('Perf | where ObjectName == \"Memory\" and CounterName == \"% Committed Bytes In Use\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
+                    "query": "[format('Perf | where ObjectName == \"Memory\" and CounterName == \"% Committed Bytes In Use\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
               "timeAggregation": "Average",
-              "dimensions": [],
+              "metricMeasureColumn": "AggregatedValue",
+              "dimensions": [
+                {
+          "name": "Computer",
+          "operator": "Include",
+          "values": ["*"]
+        }
+              ],
               "operator": "GreaterThan",
               "threshold": "[parameters('memoryThreshold')]",
               "failingPeriods": {
@@ -511,9 +525,16 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('Perf | where ObjectName == \"LogicalDisk\" and CounterName == \"% Free Space\" | where CounterValue < {0} | summarize AggregatedValue = avg(CounterValue) by Computer, InstanceName, bin(TimeGenerated, 15m)', sub(100, parameters('diskThreshold')))]",
+             "query": "[format('Perf | where ObjectName == \"LogicalDisk\" and CounterName == \"% Free Space\" | where CounterValue < {0} | summarize AggregatedValue = avg(CounterValue) by Computer, InstanceName, bin(TimeGenerated, 15m)', sub(100, parameters('diskThreshold')))]",
               "timeAggregation": "Average",
-              "dimensions": [],
+              "metricMeasureColumn": "AggregatedValue",
+              "dimensions": [
+                {
+          "name": "Computer",
+          "operator": "Include",
+          "values": ["*"]
+        }
+              ],
               "operator": "LessThan",
               "threshold": "[sub(100, parameters('diskThreshold'))]",
               "failingPeriods": {
