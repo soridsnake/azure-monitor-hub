@@ -434,7 +434,7 @@
         }
       },
       "variables": {
-        "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/59e9c3eb-d8df-473b-8059-23fd38ddd0f0"
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/924bfe3a-762f-40e7-86dd-5c8b95eb09e6"
       },
       "resources": [
         {
@@ -446,7 +446,7 @@
             "type": "SystemAssigned"
           },
           "properties": {
-            "displayName": "[format('Enable Azure Monitor Agent for Windows VMs - {0}', parameters('policyAssignmentName'))]",
+            "displayName": "[format('Enable Azure Monitor for VMs - {0}', parameters('policyAssignmentName'))]",
             "description": "Automatically configures Windows VMs with Azure Monitor Agent using user-assigned managed identity and associates with Data Collection Rule",
             "enforcementMode": "Default",
             "policyDefinitionId": "[variables('policyDefinitionId')]",
@@ -456,9 +456,6 @@
               },
               "userAssignedManagedIdentityResourceId": {
                 "value": "[parameters('managedIdentityResourceId')]"
-              },
-              "effect": {
-                "value": "DeployIfNotExists"
               }
             },
             "nonComplianceMessages": [
@@ -508,6 +505,20 @@
             "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
             "principalType": "ServicePrincipal",
             "description": "Allows policy to manage VM extensions"
+          }
+        },
+        {
+          "type": "Microsoft.Authorization/roleAssignments",
+          "apiVersion": "2022-04-01",
+          "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'LogAnalyticsContributor')]",
+          "dependsOn": [
+            "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+          ],
+          "properties": {
+            "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '92aaf0da-9dab-42b6-94a3-d43ce8d16293')]",
+            "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
+            "principalType": "ServicePrincipal",
+            "description": "Allows policy to configure monitoring"
           }
         }
       ],
