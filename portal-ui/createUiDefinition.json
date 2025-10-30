@@ -161,7 +161,7 @@
                 "visible": true,
                 "options": {
                   "icon": "Info",
-                  "text": "A User-Assigned Managed Identity is required to run deployment scripts that associate VMs with Data Collection Rules. The identity will be granted Contributor role on the resource group."
+                  "text": "A User-Assigned Managed Identity is required to run deployment scripts that associate VMs with Data Collection Rules. You must manually grant this identity 'Contributor' role at the subscription level after deployment."
                 }
               }
             ]
@@ -196,28 +196,33 @@
                 }
               },
               {
-                "name": "selectedVMs",
-                "type": "Microsoft.Solutions.ResourceSelector",
-                "label": "Select Virtual Machines",
-                "resourceType": "Microsoft.Compute/virtualMachines",
-                "options": {
-                  "filter": {
-                    "subscription": "onBasics"
-                  }
-                },
+                "name": "selectedVMResourceIds",
+                "type": "Microsoft.Common.TextBox",
+                "label": "VM Resource IDs",
+                "placeholder": "/subscriptions/xxx/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1,/subscriptions/xxx/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm2",
+                "toolTip": "Enter full Resource IDs of VMs to monitor, separated by commas. Copy Resource ID from VM's Properties page.",
+                "multiLine": true,
                 "constraints": {
-                  "required": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected')]"
+                  "required": true
                 },
-                "toolTip": "Select VMs to monitor. Azure Monitor Agent (AMA) will be installed and associated with Data Collection Rules.",
                 "visible": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected')]"
               },
               {
-                "name": "vmInfoBox",
+                "name": "vmInfoBoxSelected",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected')]",
+                "options": {
+                  "icon": "Info",
+                  "text": "To get VM Resource ID: Go to VM → Properties → Copy 'Resource ID'. Paste multiple IDs separated by commas."
+                }
+              },
+              {
+                "name": "vmInfoBoxAll",
                 "type": "Microsoft.Common.InfoBox",
                 "visible": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
                 "options": {
                   "icon": "Warning",
-                  "text": "All Virtual Machines in the subscription will be monitored. This requires Azure Policy to be enabled in the Automation tab. Azure Monitor Agent (AMA) will be installed on all VMs and they will be associated with Data Collection Rules."
+                  "text": "ALL Virtual Machines in the subscription will be discovered and monitored automatically. The deployment script will query all VMs and associate them with Data Collection Rules. This may take several minutes."
                 }
               },
               {
@@ -252,7 +257,7 @@
                 "visible": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]",
                 "options": {
                   "icon": "Info",
-                  "text": "Data Collection Rules will be created and automatically associated with selected VMs using a deployment script. Azure Monitor Agent (AMA) installation requires Azure Policy or manual deployment."
+                  "text": "Data Collection Rules will be created and automatically associated with VMs using a deployment script. Azure Monitor Agent (AMA) must be installed separately via Azure Policy or manually."
                 }
               }
             ]
@@ -419,9 +424,9 @@
       "useExistingManagedIdentity": "[equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing')]",
       "existingManagedIdentityId": "[if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing'), steps('infrastructure').managedIdentitySection.existing.id, '')]",
       "managedIdentityName": "[if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'new'), steps('infrastructure').managedIdentitySection.name, if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing'), steps('infrastructure').managedIdentitySection.existing.name, concat('id-', basics('deploymentName'))))]",
-      "monitorExistingVMs": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected')]",
+      "monitorExistingVMs": "[or(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all'))]",
       "monitorAllVMs": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
-      "selectedVMIds": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), steps('infrastructure').vmMonitoringSection.selectedVMs.ids, parse('[]'))]",
+      "selectedVMIds": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), split(replace(steps('infrastructure').vmMonitoringSection.selectedVMResourceIds, ' ', ''), ','), parse('[]'))]",
       "dcrNameWindows": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'), concat('dcr-', basics('deploymentName'), '-windows'), steps('infrastructure').vmMonitoringSection.dcrNameWindows)]",
       "dcrNameLinux": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'), concat('dcr-', basics('deploymentName'), '-linux'), steps('infrastructure').vmMonitoringSection.dcrNameLinux)]",
       "enableAzurePolicy": "[steps('automation').policySection.enableAzurePolicy]",
