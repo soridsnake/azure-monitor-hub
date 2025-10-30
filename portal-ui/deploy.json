@@ -130,24 +130,6 @@
       }
     },
     {
-      "type": "Microsoft.OperationsManagement/solutions",
-      "apiVersion": "2015-11-01-preview",
-      "name": "[format('VMInsights({0})', variables('workspaceName'))]",
-      "location": "[parameters('location')]",
-      "plan": {
-        "name": "[format('VMInsights({0})', variables('workspaceName'))]",
-        "publisher": "Microsoft",
-        "product": "OMSGallery/VMInsights",
-        "promotionCode": ""
-      },
-      "properties": {
-        "workspaceResourceId": "[variables('workspaceId')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
-      ]
-    },
-    {
       "condition": "[not(parameters('useExistingManagedIdentity'))]",
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
       "apiVersion": "2023-01-31",
