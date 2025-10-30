@@ -368,52 +368,37 @@
     },
     {
       "copy": {
-        "name": "vmDcrAssociations",
+        "name": "vmDcrAssociationsWindows",
         "count": "[if(and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs'))), length(parameters('selectedVMIds')), 0)]"
       },
       "condition": "[and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs')))]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "[format('dcr-association-{0}', copyIndex())]",
-      "resourceGroup": "[split(parameters('selectedVMIds')[copyIndex()], '/')[4]]",
+      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+      "apiVersion": "2021-09-01-preview",
+      "scope": "[parameters('selectedVMIds')[copyIndex()]]",
+      "name": "[format('dcr-association-windows-{0}', copyIndex())]",
       "properties": {
-        "mode": "Incremental",
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "parameters": {
-          "vmName": {
-            "value": "[last(split(parameters('selectedVMIds')[copyIndex()], '/'))]"
-          },
-          "dcrId": {
-            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "vmName": {
-              "type": "string"
-            },
-            "dcrId": {
-              "type": "string"
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Compute/virtualMachines/providers/dataCollectionRuleAssociations",
-              "apiVersion": "2022-06-01",
-              "name": "[format('{0}/Microsoft.Insights/dcr-association', parameters('vmName'))]",
-              "properties": {
-                "dataCollectionRuleId": "[parameters('dcrId')]"
-              }
-            }
-          ]
-        }
+        "description": "Association of Windows data collection rule for VM monitoring. Deleting this association will break the data collection for this virtual machine.",
+        "dataCollectionRuleId": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "vmDcrAssociationsLinux",
+        "count": "[if(and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs'))), length(parameters('selectedVMIds')), 0)]"
+      },
+      "condition": "[and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs')))]",
+      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+      "apiVersion": "2021-09-01-preview",
+      "scope": "[parameters('selectedVMIds')[copyIndex()]]",
+      "name": "[format('dcr-association-linux-{0}', copyIndex())]",
+      "properties": {
+        "description": "Association of Linux data collection rule for VM monitoring. Deleting this association will break the data collection for this virtual machine.",
+        "dataCollectionRuleId": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]"
+      },
+      "dependsOn": [
         "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]"
       ]
     },
