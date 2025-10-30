@@ -434,7 +434,7 @@
         }
       },
       "variables": {
-        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/0d1b56c6-6d1f-4a0d-8b1b-2e3b0f0c9e5c"
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/59e9c3eb-d8df-473b-8059-23fd38ddd0f0"
       },
       "resources": [
         {
@@ -446,8 +446,8 @@
             "type": "SystemAssigned"
           },
           "properties": {
-            "displayName": "[format('Configure Windows VMs with AMA and DCR - {0}', parameters('policyAssignmentName'))]",
-            "description": "Automatically installs Azure Monitor Agent on Windows VMs and associates them with the specified Data Collection Rule using a user-assigned managed identity",
+            "displayName": "[format('Enable Azure Monitor Agent for Windows VMs - {0}', parameters('policyAssignmentName'))]",
+            "description": "Automatically configures Windows VMs with Azure Monitor Agent using user-assigned managed identity and associates with Data Collection Rule",
             "enforcementMode": "Default",
             "policyDefinitionId": "[variables('policyDefinitionId')]",
             "parameters": {
@@ -463,7 +463,7 @@
             },
             "nonComplianceMessages": [
               {
-                "message": "Windows VMs must have Azure Monitor Agent installed and configured with the Data Collection Rule for monitoring"
+                "message": "Windows VMs must have Azure Monitor Agent installed with user-assigned managed identity and configured with the Data Collection Rule"
               }
             ]
           }
@@ -479,7 +479,21 @@
             "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
             "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
             "principalType": "ServicePrincipal",
-            "description": "Allows policy to deploy Azure Monitor Agent and configure VMs"
+            "description": "Allows policy assignment to deploy AMA and configure VMs"
+          }
+        },
+        {
+          "type": "Microsoft.Authorization/roleAssignments",
+          "apiVersion": "2022-04-01",
+          "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ManagedIdentityOperator')]",
+          "dependsOn": [
+            "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+          ],
+          "properties": {
+            "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
+            "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
+            "principalType": "ServicePrincipal",
+            "description": "Allows policy to assign managed identity to VMs"
           }
         },
         {
@@ -494,20 +508,6 @@
             "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
             "principalType": "ServicePrincipal",
             "description": "Allows policy to manage VM extensions"
-          }
-        },
-        {
-          "type": "Microsoft.Authorization/roleAssignments",
-          "apiVersion": "2022-04-01",
-          "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ManagedIdentityOperator')]",
-          "dependsOn": [
-            "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-          ],
-          "properties": {
-            "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
-            "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
-            "principalType": "ServicePrincipal",
-            "description": "Allows policy to assign user-assigned managed identity to VMs"
           }
         }
       ],
@@ -525,7 +525,8 @@
   },
   "dependsOn": [
     "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
-    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
+    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+    "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
   ]
 },
     {
