@@ -411,7 +411,7 @@
       ]
     },
     {
-      "condition": "[and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs')))]",
+      "condition": "[and(parameters('monitorExistingVMs'), greater(length(parameters('selectedVMIds')), 0))]",
       "type": "Microsoft.Resources/deploymentScripts",
       "apiVersion": "2020-10-01",
       "name": "[format('dcr-association-script-{0}', parameters('deploymentName'))]",
@@ -434,8 +434,7 @@
       "dependsOn": [
         "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
         "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-        "[extensionResourceId(subscription().id, 'Microsoft.Authorization/roleAssignments', guid(subscription().id, variables('managedIdentityId'), 'Contributor'))]"
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
       ]
     },
     {
