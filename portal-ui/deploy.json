@@ -183,28 +183,16 @@
       "apiVersion": "2022-06-01",
       "name": "[parameters('dcrNameWindows')]",
       "location": "[parameters('location')]",
+      "kind": "Windows",
       "properties": {
         "dataSources": {
           "performanceCounters": [
             {
-              "name": "perfCounterDataSource",
+              "name": "VMInsightsPerfCounters",
               "samplingFrequencyInSeconds": 60,
-              "streams": ["Microsoft-Perf"],
+              "streams": ["Microsoft-InsightsMetrics"],
               "counterSpecifiers": [
-                "\\Processor(_Total)\\% Processor Time",
-                "\\Memory\\% Committed Bytes In Use",
-                "\\LogicalDisk(_Total)\\% Free Space",
-                "\\Network Interface(*)\\Bytes Total/sec"
-              ]
-            }
-          ],
-          "windowsEventLogs": [
-            {
-              "name": "eventLogsDataSource",
-              "streams": ["Microsoft-Event"],
-              "xPathQueries": [
-                "System!*[System[(Level=1 or Level=2 or Level=3)]]",
-                "Application!*[System[(Level=1 or Level=2 or Level=3)]]"
+                "\\VmInsights\\DetailedMetrics"
               ]
             }
           ]
@@ -212,15 +200,15 @@
         "destinations": {
           "logAnalytics": [
             {
-              "name": "la-workspace",
+              "name": "VMInsightsPerf-Logs-Dest",
               "workspaceResourceId": "[variables('workspaceId')]"
             }
           ]
         },
         "dataFlows": [
           {
-            "streams": ["Microsoft-Perf", "Microsoft-Event"],
-            "destinations": ["la-workspace"]
+            "streams": ["Microsoft-InsightsMetrics"],
+            "destinations": ["VMInsightsPerf-Logs-Dest"]
           }
         ]
       },
@@ -233,18 +221,16 @@
       "apiVersion": "2022-06-01",
       "name": "[parameters('dcrNameLinux')]",
       "location": "[parameters('location')]",
+      "kind": "Linux",
       "properties": {
         "dataSources": {
           "performanceCounters": [
             {
-              "name": "perfCounterDataSource",
+              "name": "VMInsightsPerfCounters",
               "samplingFrequencyInSeconds": 60,
-              "streams": ["Microsoft-Perf"],
+              "streams": ["Microsoft-InsightsMetrics"],
               "counterSpecifiers": [
-                "Processor(*)\\% Processor Time",
-                "Memory(*)\\% Used Memory",
-                "Logical Disk(*)\\% Used Space",
-                "Network(*)\\Total Bytes Transmitted"
+                "\\VmInsights\\DetailedMetrics"
               ]
             }
           ],
@@ -260,15 +246,19 @@
         "destinations": {
           "logAnalytics": [
             {
-              "name": "la-workspace",
+              "name": "VMInsightsPerf-Logs-Dest",
               "workspaceResourceId": "[variables('workspaceId')]"
             }
           ]
         },
         "dataFlows": [
           {
-            "streams": ["Microsoft-Perf", "Microsoft-Syslog"],
-            "destinations": ["la-workspace"]
+            "streams": ["Microsoft-InsightsMetrics"],
+            "destinations": ["VMInsightsPerf-Logs-Dest"]
+          },
+          {
+            "streams": ["Microsoft-Syslog"],
+            "destinations": ["VMInsightsPerf-Logs-Dest"]
           }
         ]
       },
@@ -343,7 +333,7 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('Perf | where ObjectName == \"Processor\" and CounterName == \"% Processor Time\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('cpuThreshold'))]",
+              "query": "[format('InsightsMetrics | where Namespace == \"Processor\" and Name == \"UtilizationPercentage\" | where Val > {0} | summarize AggregatedValue = avg(Val) by Computer, bin(TimeGenerated, 5m)', parameters('cpuThreshold'))]",
               "timeAggregation": "Average",
               "metricMeasureColumn": "AggregatedValue",
               "dimensions": [{"name": "Computer", "operator": "Include", "values": ["*"]}],
@@ -379,7 +369,7 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('Perf | where ObjectName == \"Memory\" and CounterName == \"% Committed Bytes In Use\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
+              "query": "[format('InsightsMetrics | where Namespace == \"Memory\" and Name == \"AvailableMB\" | extend TotalMemory = todouble(parse_json(Tags)[\"vm.azm.ms/memorySizeMB\"]) | extend UsedPercent = 100.0 - ((Val / TotalMemory) * 100.0) | where UsedPercent > {0} | summarize AggregatedValue = avg(UsedPercent) by Computer, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
               "timeAggregation": "Average",
               "metricMeasureColumn": "AggregatedValue",
               "dimensions": [{"name": "Computer", "operator": "Include", "values": ["*"]}],
@@ -415,7 +405,7 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('Perf | where ObjectName == \"LogicalDisk\" and CounterName == \"% Free Space\" | where CounterValue < {0} | summarize AggregatedValue = avg(CounterValue) by Computer, InstanceName, bin(TimeGenerated, 15m)', sub(100, parameters('diskThreshold')))]",
+              "query": "[format('InsightsMetrics | where Namespace == \"LogicalDisk\" and Name == \"FreeSpacePercentage\" | where Val < {0} | summarize AggregatedValue = avg(Val) by Computer, bin(TimeGenerated, 15m)', sub(100, parameters('diskThreshold')))]",
               "timeAggregation": "Average",
               "metricMeasureColumn": "AggregatedValue",
               "dimensions": [{"name": "Computer", "operator": "Include", "values": ["*"]}],
