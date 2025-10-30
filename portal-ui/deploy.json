@@ -446,7 +446,7 @@
             "type": "SystemAssigned"
           },
           "properties": {
-            "displayName": "[format('Enable Azure Monitor for VMs - {0}', parameters('policyAssignmentName'))]",
+            "displayName": "[format('Enable Azure Monitor for VMs (Windows) - {0}', parameters('policyAssignmentName'))]",
             "description": "Automatically configures Windows VMs with Azure Monitor Agent using user-assigned managed identity and associates with Data Collection Rule",
             "enforcementMode": "Default",
             "policyDefinitionId": "[variables('policyDefinitionId')]",
@@ -456,6 +456,9 @@
               },
               "userAssignedManagedIdentityResourceId": {
                 "value": "[parameters('managedIdentityResourceId')]"
+              },
+              "bringYourOwnUserAssignedManagedIdentity": {
+                "value": true
               }
             },
             "nonComplianceMessages": [
