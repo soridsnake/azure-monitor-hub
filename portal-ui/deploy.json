@@ -240,6 +240,9 @@
         "parameters": {
           "principalId": {
             "value": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId)]"
+          },
+          "deploymentName": {
+            "value": "[parameters('deploymentName')]"
           }
         },
         "template": {
@@ -248,13 +251,16 @@
           "parameters": {
             "principalId": {
               "type": "string"
+            },
+            "deploymentName": {
+              "type": "string"
             }
           },
           "resources": [
             {
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'Contributor')]",
+              "name": "[guid(subscription().id, parameters('principalId'), parameters('deploymentName'), 'Contributor')]",
               "properties": {
                 "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
                 "principalId": "[parameters('principalId')]",
@@ -414,6 +420,9 @@
           },
           "location": {
             "value": "[parameters('location')]"
+          },
+          "deploymentName": {
+            "value": "[parameters('deploymentName')]"
           }
         },
         "template": {
@@ -430,6 +439,9 @@
               "type": "string"
             },
             "location": {
+              "type": "string"
+            },
+            "deploymentName": {
               "type": "string"
             }
           },
@@ -483,7 +495,7 @@
             {
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'Contributor')]",
+              "name": "[guid(subscription().id, parameters('policyAssignmentName'), parameters('deploymentName'), 'Contributor')]",
               "dependsOn": [
                 "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
               ],
@@ -497,7 +509,7 @@
             {
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ManagedIdentityOperator')]",
+              "name": "[guid(subscription().id, parameters('policyAssignmentName'), parameters('deploymentName'), 'ManagedIdentityOperator')]",
               "dependsOn": [
                 "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
               ],
@@ -511,7 +523,7 @@
             {
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'VirtualMachineContributor')]",
+              "name": "[guid(subscription().id, parameters('policyAssignmentName'), parameters('deploymentName'), 'VirtualMachineContributor')]",
               "dependsOn": [
                 "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
               ],
@@ -563,7 +575,8 @@
         "scriptContent": "param([string]$PolicyAssignmentId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"POLICY REMEDIATION - All VMs\"\nWrite-Host \"========================================\"\nWrite-Host \"Policy Assignment ID: $PolicyAssignmentId\"\nWrite-Host \"\"\n\nif ([string]::IsNullOrWhiteSpace($PolicyAssignmentId)) {\n    Write-Host \"No policy assignment ID provided\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Skipped'\n    exit 0\n}\n\n# Wait for policy to propagate\nWrite-Host \"Waiting 90 seconds for policy propagation...\"\nStart-Sleep -Seconds 90\n\n$remediations = @()\n$successCount = 0\n$failCount = 0\n\ntry {\n    # Get policy assignment details\n    $policyAssignment = Get-AzPolicyAssignment -Id $PolicyAssignmentId -ErrorAction Stop\n    \n    Write-Host \"Policy Assignment: $($policyAssignment.Name)\"\n    Write-Host \"Scope: $($policyAssignment.Properties.Scope)\"\n    Write-Host \"\"\n    \n    # Define all policy definition reference IDs to remediate\n    $policiesToRemediate = @(\n        @{ Name = \"Managed Identity Assignment\"; ReferenceId = \"AddUserAssignedManagedIdentity_VM\" },\n        @{ Name = \"Windows AMA Installation\"; ReferenceId = \"DeployAzureMonitoringAgentWindows\" },\n        @{ Name = \"Windows DCR Association\"; ReferenceId = \"DataCollectionRuleAssociation_Windows\" },\n        @{ Name = \"Linux AMA Installation\"; ReferenceId = \"DeployAzureMonitoringAgentLinux\" },\n        @{ Name = \"Linux DCR Association\"; ReferenceId = \"DataCollectionRuleAssociation_Linux\" }\n    )\n    \n    $policyNumber = 1\n    $totalPolicies = $policiesToRemediate.Count\n    \n    foreach ($policy in $policiesToRemediate) {\n        Write-Host \"[$policyNumber/$totalPolicies] Creating remediation for: $($policy.Name)\" -ForegroundColor Cyan\n        \n        try {\n            $remediationName = \"remediate-$($policy.ReferenceId.ToLower())-$(Get-Date -Format 'yyyyMMddHHmmss')\"\n            \n            $remediation = Start-AzPolicyRemediation `\n                -Name $remediationName `\n                -PolicyAssignmentId $PolicyAssignmentId `\n                -PolicyDefinitionReferenceId $policy.ReferenceId `\n                -ResourceDiscoveryMode ReEvaluateCompliance `\n                -ErrorAction Stop\n            \n            Write-Host \"  ✓ SUCCESS: $($remediation.Id)\" -ForegroundColor Green\n            $successCount++\n            \n            $remediations += @{ \n                Name = $policy.Name\n                ReferenceId = $policy.ReferenceId\n                RemediationId = $remediation.Id\n                Status = \"Created\" \n            }\n        }\n        catch {\n            Write-Host \"  ✗ FAILED: $($_.Exception.Message)\" -ForegroundColor Red\n            $failCount++\n            \n            $remediations += @{ \n                Name = $policy.Name\n                ReferenceId = $policy.ReferenceId\n                Error = $_.Exception.Message\n                Status = \"Failed\" \n            }\n        }\n        \n        Write-Host \"\"\n        $policyNumber++\n    }\n    \n    Write-Host \"========================================\"\n    Write-Host \"REMEDIATION SUMMARY\"\n    Write-Host \"========================================\"\n    Write-Host \"Total Policies: $totalPolicies\"\n    Write-Host \"✓ Successful: $successCount\" -ForegroundColor Green\n    if ($failCount -gt 0) {\n        Write-Host \"✗ Failed: $failCount\" -ForegroundColor Red\n    }\n    Write-Host \"========================================\"\n    Write-Host \"\"\n    \n    if ($successCount -gt 0) {\n        Write-Host \"Remediation tasks are running in the background\" -ForegroundColor Cyan\n        Write-Host \"Check Azure Portal > Policy > Compliance for progress\" -ForegroundColor Cyan\n        Write-Host \"VMs will be configured automatically within 15-30 minutes\" -ForegroundColor Cyan\n    }\n    \n    if ($failCount -gt 0) {\n        Write-Host \"\"\n        Write-Host \"Some remediation tasks failed. You can create them manually:\" -ForegroundColor Yellow\n        Write-Host \"  1. Go to Azure Portal > Policy > Compliance\"\n        Write-Host \"  2. Select the policy assignment\"\n        Write-Host \"  3. Click 'Create remediation task' for failed policies\"\n    }\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['remediations'] = $remediations | ConvertTo-Json -Compress\n    $DeploymentScriptOutputs['totalPolicies'] = $totalPolicies\n    $DeploymentScriptOutputs['successCount'] = $successCount\n    $DeploymentScriptOutputs['failCount'] = $failCount\n    $DeploymentScriptOutputs['status'] = 'Completed'\n}\ncatch {\n    Write-Host \"========================================\"\n    Write-Host \"ERROR\"\n    Write-Host \"========================================\"\n    Write-Host $_.Exception.Message -ForegroundColor Red\n    Write-Host \"\"\n    Write-Host \"You can create remediation tasks manually from Azure Portal\" -ForegroundColor Yellow\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Failed'\n    $DeploymentScriptOutputs['error'] = $_.Exception.Message\n}\n"
       },
       "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-windows-{0}', parameters('deploymentName')))]"
+        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-windows-{0}', parameters('deploymentName')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
       ]
     },
     {
