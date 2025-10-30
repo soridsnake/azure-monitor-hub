@@ -219,8 +219,7 @@
   "variables": {
     "workspaceName": "[if(parameters('useExistingLogAnalytics'), split(parameters('existingLogAnalyticsWorkspaceId'), '/')[8], parameters('logAnalyticsWorkspaceName'))]",
     "workspaceId": "[if(parameters('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')))]",
-    "managedIdentityId": "[if(parameters('useExistingManagedIdentity'), parameters('existingManagedIdentityId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')))]",
-    "subscriptionId": "[subscription().subscriptionId]"
+    "managedIdentityId": "[if(parameters('useExistingManagedIdentity'), parameters('existingManagedIdentityId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')))]"
   },
   "resources": [
     {
@@ -268,24 +267,48 @@
     },
     {
       "condition": "[parameters('monitorExistingVMs')]",
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2020-10-01",
-      "name": "[format('role-assignment-script-{0}', parameters('deploymentName'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('subscription-role-assignment-{0}', parameters('deploymentName'))]",
       "location": "[parameters('location')]",
-      "kind": "AzurePowerShell",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', variables('managedIdentityId'))]": {}
-        }
-      },
+      "subscriptionId": "[subscription().subscriptionId]",
       "properties": {
-        "azPowerShellVersion": "10.0",
-        "retentionInterval": "PT1H",
-        "timeout": "PT10M",
-        "cleanupPreference": "OnSuccess",
-        "arguments": "[format('-PrincipalId \"{0}\" -SubscriptionId \"{1}\"', if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId), variables('subscriptionId'))]",
-        "scriptContent": "param(\n    [string]$PrincipalId,\n    [string]$SubscriptionId\n)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"Creating Subscription-Level Role Assignment\"\nWrite-Host \"========================================\"\nWrite-Host \"Principal ID: $PrincipalId\"\nWrite-Host \"Subscription ID: $SubscriptionId\"\nWrite-Host \"\"\n\n$scope = \"/subscriptions/$SubscriptionId\"\n\nWrite-Host \"Scope: $scope\"\nWrite-Host \"Role: Contributor\"\nWrite-Host \"\"\n\ntry {\n    Write-Host \"Attempting to create role assignment...\"\n    \n    $assignment = New-AzRoleAssignment `\n        -ObjectId $PrincipalId `\n        -RoleDefinitionName \"Contributor\" `\n        -Scope $scope `\n        -ErrorAction Stop\n    \n    Write-Host \"SUCCESS: Role assignment created!\" -ForegroundColor Green\n}\ncatch {\n    if ($_.Exception.Message -like \"*already exists*\" -or $_.Exception.Message -like \"*Conflict*\") {\n        Write-Host \"Role assignment already exists - OK\" -ForegroundColor Yellow\n    }\n    else {\n        Write-Host \"ERROR: $($_.Exception.Message)\" -ForegroundColor Red\n        throw\n    }\n}\n\nWrite-Host \"\"\nWrite-Host \"Waiting 30 seconds for role propagation...\"\nStart-Sleep -Seconds 30\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['status'] = 'Success'\n$DeploymentScriptOutputs['scope'] = $scope\n"
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "principalId": {
+              "type": "string"
+            },
+            "roleAssignmentName": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[parameters('roleAssignmentName')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        },
+        "parameters": {
+          "principalId": {
+            "value": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId)]"
+          },
+          "roleAssignmentName": {
+            "value": "[guid(subscription().id, variables('managedIdentityId'), 'Contributor')]"
+          }
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
@@ -439,14 +462,14 @@
         "retentionInterval": "PT1H",
         "timeout": "PT30M",
         "cleanupPreference": "OnSuccess",
-        "arguments": "[format('-VMIdsJson ''{0}'' -MonitorAllVMs ${1} -DCRWindowsId \"{2}\" -DCRLinuxId \"{3}\"', replace(replace(string(parameters('selectedVMIds')), '\"', '\\\"'), '[', '[\"'), parameters('monitorAllVMs'), resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows')), resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux')))]"
-        "scriptContent": "param(\n    [string]$VMIdsJson,\n    [bool]$MonitorAllVMs,\n    [string]$DCRWindowsId,\n    [string]$DCRLinuxId\n)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"Starting DCR Association Script\"\nWrite-Host \"========================================\"\nWrite-Host \"Monitor All VMs: $MonitorAllVMs\"\nWrite-Host \"DCR Windows ID: $DCRWindowsId\"\nWrite-Host \"DCR Linux ID: $DCRLinuxId\"\nWrite-Host \"VMIds JSON: $VMIdsJson\"\nWrite-Host \"\"\n\n$vmArray = @()\n\nif ($MonitorAllVMs) {\n    Write-Host \"Discovering all VMs in subscription...\"\n    try {\n        $allVMs = Get-AzVM -ErrorAction Stop\n        Write-Host \"Found $($allVMs.Count) VMs\"\n        \n        foreach ($vm in $allVMs) {\n            $vmArray += $vm.Id\n            Write-Host \"  - $($vm.Name)\"\n        }\n    }\n    catch {\n        Write-Host \"ERROR: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\nelse {\n    Write-Host \"Processing selected VMs...\"\n    \n    if ([string]::IsNullOrWhiteSpace($VMIdsJson) -or $VMIdsJson -eq '[]') {\n        Write-Host \"ERROR: No VMs provided!\" -ForegroundColor Red\n        exit 1\n    }\n    \n    try {\n        $vmArray = $VMIdsJson | ConvertFrom-Json\n        Write-Host \"Parsed $($vmArray.Count) VM(s)\"\n    }\n    catch {\n        Write-Host \"ERROR: Failed to parse: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\n\nif ($vmArray.Count -eq 0) {\n    Write-Host \"No VMs to process\" -ForegroundColor Yellow\n    exit 0\n}\n\nWrite-Host \"\"\nWrite-Host \"Processing $($vmArray.Count) VM(s)...\"\nWrite-Host \"\"\n\n$results = @()\n$successCount = 0\n$failCount = 0\n\nforeach ($vmId in $vmArray) {\n    Write-Host \"Processing: $vmId\" -ForegroundColor Cyan\n    \n    $vmName = $vmId.Split('/')[-1]\n    $vmRG = $vmId.Split('/')[4]\n    \n    try {\n        $vm = Get-AzVM -ResourceGroupName $vmRG -Name $vmName -ErrorAction Stop\n        \n        $dcrId = if ($vm.StorageProfile.OsDisk.OsType -eq \"Linux\") { $DCRLinuxId } else { $DCRWindowsId }\n        $osType = $vm.StorageProfile.OsDisk.OsType\n        \n        Write-Host \"  OS: $osType | DCR: $dcrId\"\n        \n        $associationName = \"dcr-association-$vmName\"\n        \n        $association = New-AzDataCollectionRuleAssociation `\n            -TargetResourceId $vmId `\n            -AssociationName $associationName `\n            -DataCollectionRuleId $dcrId `\n            -ErrorAction Stop\n        \n        Write-Host \"  SUCCESS\" -ForegroundColor Green\n        $successCount++\n        \n        $results += @{\n            VMName = $vmName\n            Status = \"Success\"\n            OSType = $osType\n        }\n    }\n    catch {\n        Write-Host \"  FAILED: $_\" -ForegroundColor Red\n        $failCount++\n        \n        $results += @{\n            VMName = $vmName\n            Status = \"Failed\"\n            Error = $_.Exception.Message\n        }\n    }\n}\n\nWrite-Host \"\"\nWrite-Host \"========================================\"\nWrite-Host \"Summary: $successCount succeeded, $failCount failed\"\nWrite-Host \"========================================\"\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['results'] = $results | ConvertTo-Json -Compress\n$DeploymentScriptOutputs['successCount'] = $successCount\n$DeploymentScriptOutputs['failCount'] = $failCount\n"
+        "arguments": "[format('-VMIdsBase64 \"{0}\" -MonitorAllVMs ${1} -DCRWindowsId \"{2}\" -DCRLinuxId \"{3}\"', base64(string(parameters('selectedVMIds'))), parameters('monitorAllVMs'), resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows')), resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux')))]",
+        "scriptContent": "param(\n    [string]$VMIdsBase64,\n    [bool]$MonitorAllVMs,\n    [string]$DCRWindowsId,\n    [string]$DCRLinuxId\n)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"Starting DCR Association Script\"\nWrite-Host \"========================================\"\nWrite-Host \"Waiting 60 seconds for role assignment propagation...\"\nStart-Sleep -Seconds 60\n\nWrite-Host \"Monitor All VMs: $MonitorAllVMs\"\nWrite-Host \"DCR Windows ID: $DCRWindowsId\"\nWrite-Host \"DCR Linux ID: $DCRLinuxId\"\nWrite-Host \"\"\n\n$vmArray = @()\n\nif ($MonitorAllVMs) {\n    Write-Host \"Discovering all VMs in subscription...\"\n    try {\n        $allVMs = Get-AzVM -ErrorAction Stop\n        Write-Host \"Found $($allVMs.Count) VMs\"\n        \n        foreach ($vm in $allVMs) {\n            $vmArray += $vm.Id\n            Write-Host \"  - $($vm.Name)\"\n        }\n    }\n    catch {\n        Write-Host \"ERROR: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\nelse {\n    Write-Host \"Decoding VM IDs from Base64...\"\n    \n    try {\n        $VMIdsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($VMIdsBase64))\n        Write-Host \"Decoded JSON: $VMIdsJson\"\n        \n        if ([string]::IsNullOrWhiteSpace($VMIdsJson) -or $VMIdsJson -eq '[]') {\n            Write-Host \"ERROR: No VMs provided!\" -ForegroundColor Red\n            exit 1\n        }\n        \n        $vmArray = $VMIdsJson | ConvertFrom-Json\n        Write-Host \"Parsed $($vmArray.Count) VM(s)\"\n    }\n    catch {\n        Write-Host \"ERROR: Failed to decode/parse: $_\" -ForegroundColor Red\n        Write-Host \"Base64 value: $VMIdsBase64\"\n        exit 1\n    }\n}\n\nif ($vmArray.Count -eq 0) {\n    Write-Host \"No VMs to process\" -ForegroundColor Yellow\n    exit 0\n}\n\nWrite-Host \"\"\nWrite-Host \"Processing $($vmArray.Count) VM(s)...\"\nWrite-Host \"\"\n\n$results = @()\n$successCount = 0\n$failCount = 0\n\nforeach ($vmId in $vmArray) {\n    Write-Host \"Processing: $vmId\" -ForegroundColor Cyan\n    \n    $vmName = $vmId.Split('/')[-1]\n    $vmRG = $vmId.Split('/')[4]\n    \n    try {\n        $vm = Get-AzVM -ResourceGroupName $vmRG -Name $vmName -ErrorAction Stop\n        \n        $dcrId = if ($vm.StorageProfile.OsDisk.OsType -eq \"Linux\") { $DCRLinuxId } else { $DCRWindowsId }\n        $osType = $vm.StorageProfile.OsDisk.OsType\n        \n        Write-Host \"  OS: $osType\"\n        \n        $associationName = \"dcr-association-$vmName\"\n        \n        $association = New-AzDataCollectionRuleAssociation `\n            -TargetResourceId $vmId `\n            -AssociationName $associationName `\n            -DataCollectionRuleId $dcrId `\n            -ErrorAction Stop\n        \n        Write-Host \"  SUCCESS\" -ForegroundColor Green\n        $successCount++\n        \n        $results += @{\n            VMName = $vmName\n            Status = \"Success\"\n            OSType = $osType\n        }\n    }\n    catch {\n        Write-Host \"  FAILED: $_\" -ForegroundColor Red\n        $failCount++\n        \n        $results += @{\n            VMName = $vmName\n            Status = \"Failed\"\n            Error = $_.Exception.Message\n        }\n    }\n}\n\nWrite-Host \"\"\nWrite-Host \"========================================\"\nWrite-Host \"Summary: $successCount succeeded, $failCount failed\"\nWrite-Host \"========================================\"\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['results'] = $results | ConvertTo-Json -Compress\n$DeploymentScriptOutputs['successCount'] = $successCount\n$DeploymentScriptOutputs['failCount'] = $failCount\n"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
         "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-        "[resourceId('Microsoft.Resources/deploymentScripts', format('role-assignment-script-{0}', parameters('deploymentName')))]"
+        "[resourceId('Microsoft.Resources/deployments', format('subscription-role-assignment-{0}', parameters('deploymentName')))]"
       ]
     },
     {
@@ -678,6 +701,10 @@
     "managedIdentityId": {
       "type": "string",
       "value": "[variables('managedIdentityId')]"
+    },
+    "managedIdentityPrincipalId": {
+      "type": "string",
+      "value": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId)]"
     },
     "dcrWindowsId": {
       "type": "string",
