@@ -161,7 +161,7 @@
                 "visible": true,
                 "options": {
                   "icon": "Info",
-                  "text": "A User-Assigned Managed Identity is required to run deployment scripts that associate VMs with Data Collection Rules. You must manually grant this identity 'Contributor' role at the subscription level after deployment."
+                  "text": "A User-Assigned Managed Identity is used to run deployment scripts that associate VMs with Data Collection Rules. It will automatically receive Contributor permissions at the subscription level."
                 }
               }
             ]
@@ -257,7 +257,7 @@
                 "visible": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]",
                 "options": {
                   "icon": "Info",
-                  "text": "Data Collection Rules will be created and automatically associated with VMs using a deployment script. Azure Monitor Agent (AMA) must be installed separately via Azure Policy or manually."
+                  "text": "Data Collection Rules will be created and automatically associated with VMs using a deployment script. Azure Monitor Agent (AMA) will be automatically installed on running VMs."
                 }
               }
             ]
@@ -382,22 +382,36 @@
           {
             "name": "policySection",
             "type": "Microsoft.Common.Section",
-            "label": "Azure Policy",
+            "label": "Azure Policy - Automatic VM Enrollment",
             "elements": [
               {
                 "name": "enableAzurePolicy",
                 "type": "Microsoft.Common.CheckBox",
-                "label": "Enable Azure Policy for automatic VM enrollment",
+                "label": "Enable Azure Policy for automatic monitoring of new VMs",
                 "defaultValue": false,
                 "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new VMs and associate them with Data Collection Rules"
               },
               {
-                "name": "policyInfo",
+                "name": "policyAssignmentName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Policy Assignment Name",
+                "defaultValue": "[concat('ama-monitoring-', basics('deploymentName'))]",
+                "toolTip": "Name for the Azure Policy assignment",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{3,64}$",
+                  "validationMessage": "Alphanumeric and hyphens. Length 3-64."
+                },
+                "visible": "[steps('automation').policySection.enableAzurePolicy]"
+              },
+              {
+                "name": "policyEnabledInfo",
                 "type": "Microsoft.Common.InfoBox",
                 "visible": "[steps('automation').policySection.enableAzurePolicy]",
                 "options": {
                   "icon": "Info",
-                  "text": "Azure Policy will be deployed to automatically install Azure Monitor Agent (AMA) on new Virtual Machines and associate them with the appropriate Data Collection Rules. Policy remediation may take 15-30 minutes to complete."
+                  "text": "Azure Policy will be deployed at subscription level to automatically:\n• Install Azure Monitor Agent (AMA) on new Windows VMs\n• Assign the managed identity to VMs\n• Associate VMs with the appropriate Data Collection Rules\n\nPolicy evaluation occurs within 15 minutes of VM creation. Existing VMs can be remediated manually via Policy Compliance page.",
+                  "uri": "https://learn.microsoft.com/azure/governance/policy/overview"
                 }
               },
               {
@@ -406,7 +420,7 @@
                 "visible": "[not(steps('automation').policySection.enableAzurePolicy)]",
                 "options": {
                   "icon": "Warning",
-                  "text": "Azure Policy is disabled. New VMs will NOT be automatically enrolled. You will need to manually install Azure Monitor Agent and associate Data Collection Rules."
+                  "text": "Azure Policy is disabled. New VMs will NOT be automatically enrolled in monitoring. You will need to manually install Azure Monitor Agent and associate Data Collection Rules for each new VM."
                 }
               }
             ]
@@ -430,7 +444,7 @@
       "dcrNameWindows": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'), concat('dcr-', basics('deploymentName'), '-windows'), steps('infrastructure').vmMonitoringSection.dcrNameWindows)]",
       "dcrNameLinux": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'), concat('dcr-', basics('deploymentName'), '-linux'), steps('infrastructure').vmMonitoringSection.dcrNameLinux)]",
       "enableAzurePolicy": "[steps('automation').policySection.enableAzurePolicy]",
-      "autoEnrollNewVMs": "[steps('automation').policySection.enableAzurePolicy]",
+      "policyAssignmentName": "[if(steps('automation').policySection.enableAzurePolicy, steps('automation').policySection.policyAssignmentName, concat('ama-monitoring-', basics('deploymentName')))]",
       "enableCPUAlerts": "[steps('monitoring').enabledAlertsSection.enableCPUAlerts]",
       "cpuThreshold": "[steps('monitoring').alertThresholdsSection.cpuThreshold]",
       "enableMemoryAlerts": "[steps('monitoring').enabledAlertsSection.enableMemoryAlerts]",
@@ -441,8 +455,6 @@
       "createActionGroup": true,
       "actionGroupName": "[steps('notifications').actionGroupName]",
       "emailRecipients": "[steps('notifications').emailRecipients]",
-      "deployDashboard": true,
-      "dashboardName": "VM Monitoring Dashboard",
       "tagsByResource": {}
     }
   }
