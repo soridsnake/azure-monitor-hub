@@ -106,6 +106,67 @@
             ]
           },
           {
+            "name": "managedIdentitySection",
+            "type": "Microsoft.Common.Section",
+            "label": "Managed Identity",
+            "elements": [
+              {
+                "name": "newOrExisting",
+                "type": "Microsoft.Common.OptionsGroup",
+                "label": "Managed Identity",
+                "defaultValue": "new",
+                "toolTip": "Create a new managed identity or use an existing one for deployment scripts",
+                "constraints": {
+                  "allowedValues": [
+                    {
+                      "label": "Create new",
+                      "value": "new"
+                    },
+                    {
+                      "label": "Use existing",
+                      "value": "existing"
+                    }
+                  ],
+                  "required": true
+                }
+              },
+              {
+                "name": "name",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Managed Identity Name",
+                "defaultValue": "[concat('id-', basics('deploymentName'))]",
+                "toolTip": "Name for the User-Assigned Managed Identity",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{3,128}$",
+                  "validationMessage": "Alphanumeric and hyphens. Length 3-128."
+                },
+                "visible": "[equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'new')]"
+              },
+              {
+                "name": "existing",
+                "type": "Microsoft.Solutions.ResourceSelector",
+                "label": "Select Managed Identity",
+                "resourceType": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                "options": {
+                  "filter": {
+                    "subscription": "onBasics"
+                  }
+                },
+                "visible": "[equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing')]"
+              },
+              {
+                "name": "identityInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": true,
+                "options": {
+                  "icon": "Info",
+                  "text": "A User-Assigned Managed Identity is required to run deployment scripts that associate VMs with Data Collection Rules. The identity will be granted Contributor role on the subscription."
+                }
+              }
+            ]
+          },
+          {
             "name": "vmMonitoringSection",
             "type": "Microsoft.Common.Section",
             "label": "Virtual Machine Monitoring",
@@ -188,7 +249,7 @@
                 "visible": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]",
                 "options": {
                   "icon": "Info",
-                  "text": "Data Collection Rules will be created and associated with selected VMs. Azure Monitor Agent (AMA) installation requires Azure Policy or manual deployment."
+                  "text": "Data Collection Rules will be created and automatically associated with selected VMs using a deployment script. Azure Monitor Agent (AMA) installation requires Azure Policy or manual deployment."
                 }
               }
             ]
@@ -352,6 +413,9 @@
       "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'existing'), steps('infrastructure').logAnalyticsSection.existing.id, '')]",
       "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new'), steps('infrastructure').logAnalyticsSection.name, steps('infrastructure').logAnalyticsSection.existing.name)]",
       "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new'), steps('infrastructure').logAnalyticsSection.retentionInDays, 90)]",
+      "useExistingManagedIdentity": "[equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing')]",
+      "existingManagedIdentityId": "[if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing'), steps('infrastructure').managedIdentitySection.existing.id, '')]",
+      "managedIdentityName": "[if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'new'), steps('infrastructure').managedIdentitySection.name, split(steps('infrastructure').managedIdentitySection.existing.id, '/')[8])]",
       "monitorExistingVMs": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]",
       "monitorAllVMs": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
       "selectedVMIds": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), steps('infrastructure').vmMonitoringSection.selectedVMs.ids, parse('[]'))]",

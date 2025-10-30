@@ -51,6 +51,26 @@
         "description": "Log retention in days"
       }
     },
+    "useExistingManagedIdentity": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Use existing Managed Identity"
+      }
+    },
+    "existingManagedIdentityId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Existing Managed Identity ID"
+      }
+    },
+    "managedIdentityName": {
+      "type": "string",
+      "metadata": {
+        "description": "Managed Identity name"
+      }
+    },
     "dcrNameWindows": {
       "type": "string",
       "defaultValue": "[format('dcr-{0}-windows', parameters('deploymentName'))]",
@@ -198,7 +218,9 @@
   },
   "variables": {
     "workspaceName": "[if(parameters('useExistingLogAnalytics'), split(parameters('existingLogAnalyticsWorkspaceId'), '/')[8], parameters('logAnalyticsWorkspaceName'))]",
-    "workspaceId": "[if(parameters('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')))]"
+    "workspaceId": "[if(parameters('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')))]",
+    "managedIdentityId": "[if(parameters('useExistingManagedIdentity'), parameters('existingManagedIdentityId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')))]",
+    "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]"
   },
   "resources": [
     {
@@ -234,6 +256,28 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+      ]
+    },
+    {
+      "condition": "[not(parameters('useExistingManagedIdentity'))]",
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[parameters('managedIdentityName')]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.ManagedIdentity/userAssignedIdentities'), parameters('tagsByResource')['Microsoft.ManagedIdentity/userAssignedIdentities'], createObject())]"
+    },
+    {
+      "condition": "[parameters('monitorExistingVMs')]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(subscription().id, variables('managedIdentityId'), 'Contributor')]",
+      "properties": {
+        "roleDefinitionId": "[variables('roleDefinitionId')]",
+        "principalId": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId)]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
       ]
     },
     {
@@ -367,39 +411,31 @@
       ]
     },
     {
-      "copy": {
-        "name": "vmDcrAssociationsWindows",
-        "count": "[if(and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs'))), length(parameters('selectedVMIds')), 0)]"
-      },
       "condition": "[and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs')))]",
-      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
-      "apiVersion": "2021-09-01-preview",
-      "scope": "[parameters('selectedVMIds')[copyIndex()]]",
-      "name": "[format('dcr-association-windows-{0}', copyIndex())]",
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "[format('dcr-association-script-{0}', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "kind": "AzurePowerShell",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', variables('managedIdentityId'))]": {}
+        }
+      },
       "properties": {
-        "description": "Association of Windows data collection rule for VM monitoring. Deleting this association will break the data collection for this virtual machine.",
-        "dataCollectionRuleId": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
+        "azPowerShellVersion": "10.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT30M",
+        "cleanupPreference": "OnSuccess",
+        "arguments": "[format('-VMIds \"{0}\" -DCRWindowsId \"{1}\" -DCRLinuxId \"{2}\"', replace(string(parameters('selectedVMIds')), '\"', '\\\"'), resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows')), resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux')))]",
+        "scriptContent": "param([string]$VMIds, [string]$DCRWindowsId, [string]$DCRLinuxId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"Starting DCR Association Script\"\nWrite-Host \"VMIds: $VMIds\"\nWrite-Host \"DCR Windows ID: $DCRWindowsId\"\nWrite-Host \"DCR Linux ID: $DCRLinuxId\"\n\n# Parse VM IDs from JSON array string\n$vmArray = $VMIds | ConvertFrom-Json\n\nif ($vmArray.Count -eq 0) {\n    Write-Host \"No VMs to associate\"\n    exit 0\n}\n\n$results = @()\n\nforeach ($vmId in $vmArray) {\n    Write-Host \"Processing VM: $vmId\"\n    \n    # Extract VM info\n    $vmName = $vmId.Split('/')[-1]\n    $vmRG = $vmId.Split('/')[4]\n    $subscriptionId = $vmId.Split('/')[2]\n    \n    Write-Host \"  VM Name: $vmName\"\n    Write-Host \"  Resource Group: $vmRG\"\n    Write-Host \"  Subscription: $subscriptionId\"\n    \n    try {\n        # Get VM to determine OS type\n        $vm = Get-AzVM -ResourceGroupName $vmRG -Name $vmName -ErrorAction Stop\n        \n        # Determine which DCR to use based on OS\n        $dcrId = $DCRWindowsId\n        $osType = \"Windows\"\n        \n        if ($vm.StorageProfile.OsDisk.OsType -eq \"Linux\") {\n            $dcrId = $DCRLinuxId\n            $osType = \"Linux\"\n        }\n        \n        Write-Host \"  OS Type: $osType\"\n        Write-Host \"  Using DCR: $dcrId\"\n        \n        # Create association name\n        $associationName = \"dcr-association-$vmName\"\n        \n        # Create DCR association\n        Write-Host \"  Creating DCR association...\"\n        \n        $association = New-AzDataCollectionRuleAssociation `\n            -TargetResourceId $vmId `\n            -AssociationName $associationName `\n            -DataCollectionRuleId $dcrId `\n            -ErrorAction Stop\n        \n        Write-Host \"  ✅ Successfully associated DCR with $vmName\" -ForegroundColor Green\n        \n        $results += @{\n            VMName = $vmName\n            Status = \"Success\"\n            OSType = $osType\n            DCRId = $dcrId\n        }\n    }\n    catch {\n        Write-Host \"  ❌ Failed to associate DCR with $vmName : $_\" -ForegroundColor Red\n        \n        $results += @{\n            VMName = $vmName\n            Status = \"Failed\"\n            Error = $_.Exception.Message\n        }\n    }\n}\n\nWrite-Host \"`nDCR Association Summary:\"\n$results | ForEach-Object {\n    Write-Host \"  - $($_.VMName): $($_.Status)\"\n}\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['results'] = $results | ConvertTo-Json -Compress\n"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
-      ]
-    },
-    {
-      "copy": {
-        "name": "vmDcrAssociationsLinux",
-        "count": "[if(and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs'))), length(parameters('selectedVMIds')), 0)]"
-      },
-      "condition": "[and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs')))]",
-      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
-      "apiVersion": "2021-09-01-preview",
-      "scope": "[parameters('selectedVMIds')[copyIndex()]]",
-      "name": "[format('dcr-association-linux-{0}', copyIndex())]",
-      "properties": {
-        "description": "Association of Linux data collection rule for VM monitoring. Deleting this association will break the data collection for this virtual machine.",
-        "dataCollectionRuleId": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]"
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+        "[extensionResourceId(subscription().id, 'Microsoft.Authorization/roleAssignments', guid(subscription().id, variables('managedIdentityId'), 'Contributor'))]"
       ]
     },
     {
@@ -627,6 +663,10 @@
     "logAnalyticsWorkspaceName": {
       "type": "string",
       "value": "[variables('workspaceName')]"
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "value": "[variables('managedIdentityId')]"
     },
     "dcrWindowsId": {
       "type": "string",
