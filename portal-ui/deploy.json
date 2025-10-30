@@ -270,6 +270,7 @@
       "condition": "[parameters('monitorExistingVMs')]",
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
+      "scope": "[subscription()]",
       "name": "[guid(subscription().id, variables('managedIdentityId'), 'Contributor')]",
       "properties": {
         "roleDefinitionId": "[variables('roleDefinitionId')]",
@@ -411,7 +412,7 @@
       ]
     },
     {
-      "condition": "[and(parameters('monitorExistingVMs'), greater(length(parameters('selectedVMIds')), 0))]",
+      "condition": "[parameters('monitorExistingVMs')]",
       "type": "Microsoft.Resources/deploymentScripts",
       "apiVersion": "2020-10-01",
       "name": "[format('dcr-association-script-{0}', parameters('deploymentName'))]",
