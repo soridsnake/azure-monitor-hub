@@ -267,80 +267,60 @@
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.ManagedIdentity/userAssignedIdentities'), parameters('tagsByResource')['Microsoft.ManagedIdentity/userAssignedIdentities'], createObject())]"
     },
     {
-      "condition": "[parameters('monitorExistingVMs')]",
-      "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2022-04-01",
-      "scope": "[subscription()]",
-      "name": "[guid(subscription().id, variables('managedIdentityId'), 'Contributor')]",
-      "properties": {
-        "roleDefinitionId": "[variables('roleDefinitionId')]",
-        "principalId": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId)]",
-        "principalType": "ServicePrincipal"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
-      ]
+  "condition": "[parameters('monitorExistingVMs')]",
+  "type": "Microsoft.Resources/deployments",
+  "apiVersion": "2022-09-01",
+  "name": "[format('role-assignment-{0}', parameters('deploymentName'))]",
+  "location": "[parameters('location')]",
+  "subscriptionId": "[subscription().subscriptionId]",
+  "properties": {
+    "mode": "Incremental",
+    "expressionEvaluationOptions": {
+      "scope": "inner"
     },
-    {
-      "type": "Microsoft.Insights/dataCollectionRules",
-      "apiVersion": "2022-06-01",
-      "name": "[parameters('dcrNameWindows')]",
-      "location": "[parameters('location')]",
-      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], createObject())]",
-      "properties": {
-        "dataSources": {
-          "performanceCounters": [
-            {
-              "name": "perfCounterDataSource",
-              "samplingFrequencyInSeconds": 60,
-              "streams": [
-                "Microsoft-Perf"
-              ],
-              "counterSpecifiers": [
-                "\\Processor(_Total)\\% Processor Time",
-                "\\Memory\\% Committed Bytes In Use",
-                "\\LogicalDisk(_Total)\\% Free Space",
-                "\\Network Interface(*)\\Bytes Total/sec"
-              ]
-            }
-          ],
-          "windowsEventLogs": [
-            {
-              "name": "eventLogsDataSource",
-              "streams": [
-                "Microsoft-Event"
-              ],
-              "xPathQueries": [
-                "System!*[System[(Level=1 or Level=2 or Level=3)]]",
-                "Application!*[System[(Level=1 or Level=2 or Level=3)]]"
-              ]
-            }
-          ]
+    "parameters": {
+      "managedIdentityPrincipalId": {
+        "value": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId)]"
+      },
+      "roleDefinitionId": {
+        "value": "[variables('roleDefinitionId')]"
+      },
+      "guidValue": {
+        "value": "[guid(subscription().id, variables('managedIdentityId'), 'Contributor')]"
+      }
+    },
+    "template": {
+      "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "managedIdentityPrincipalId": {
+          "type": "string"
         },
-        "destinations": {
-          "logAnalytics": [
-            {
-              "name": "la-workspace",
-              "workspaceResourceId": "[variables('workspaceId')]"
-            }
-          ]
+        "roleDefinitionId": {
+          "type": "string"
         },
-        "dataFlows": [
-          {
-            "streams": [
-              "Microsoft-Perf",
-              "Microsoft-Event"
-            ],
-            "destinations": [
-              "la-workspace"
-            ]
+        "guidValue": {
+          "type": "string"
+        }
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Authorization/roleAssignments",
+          "apiVersion": "2022-04-01",
+          "name": "[parameters('guidValue')]",
+          "properties": {
+            "roleDefinitionId": "[parameters('roleDefinitionId')]",
+            "principalId": "[parameters('managedIdentityPrincipalId')]",
+            "principalType": "ServicePrincipal"
           }
-        ]
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+        }
       ]
-    },
+    }
+  },
+  "dependsOn": [
+    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
+  ]
+},
     {
       "type": "Microsoft.Insights/dataCollectionRules",
       "apiVersion": "2022-06-01",
