@@ -368,16 +368,49 @@
     },
     {
       "copy": {
-        "name": "dcrAssociationsWindows",
+        "name": "vmDcrAssociations",
         "count": "[if(and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs'))), length(parameters('selectedVMIds')), 0)]"
       },
       "condition": "[and(parameters('monitorExistingVMs'), not(parameters('monitorAllVMs')))]",
-      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
-      "apiVersion": "2022-06-01",
-      "scope": "[format('Microsoft.Compute/virtualMachines/{0}', last(split(parameters('selectedVMIds')[copyIndex()], '/')))]",
-      "name": "[format('{0}-dcr-association', last(split(parameters('selectedVMIds')[copyIndex()], '/')))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('dcr-association-{0}', copyIndex())]",
+      "resourceGroup": "[split(parameters('selectedVMIds')[copyIndex()], '/')[4]]",
       "properties": {
-        "dataCollectionRuleId": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "parameters": {
+          "vmName": {
+            "value": "[last(split(parameters('selectedVMIds')[copyIndex()], '/'))]"
+          },
+          "dcrId": {
+            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "vmName": {
+              "type": "string"
+            },
+            "dcrId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Compute/virtualMachines/providers/dataCollectionRuleAssociations",
+              "apiVersion": "2022-06-01",
+              "name": "[format('{0}/Microsoft.Insights/dcr-association', parameters('vmName'))]",
+              "properties": {
+                "dataCollectionRuleId": "[parameters('dcrId')]"
+              }
+            }
+          ]
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
@@ -427,15 +460,15 @@
         "criteria": {
           "allOf": [
             {
-                    "query": "[format('Perf | where ObjectName == \"Processor\" and CounterName == \"% Processor Time\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('cpuThreshold'))]",
+              "query": "[format('Perf | where ObjectName == \"Processor\" and CounterName == \"% Processor Time\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('cpuThreshold'))]",
               "timeAggregation": "Average",
               "metricMeasureColumn": "AggregatedValue",
               "dimensions": [
                 {
-          "name": "Computer",
-          "operator": "Include",
-          "values": ["*"]
-        }
+                  "name": "Computer",
+                  "operator": "Include",
+                  "values": ["*"]
+                }
               ],
               "operator": "GreaterThan",
               "threshold": "[parameters('cpuThreshold')]",
@@ -476,15 +509,15 @@
         "criteria": {
           "allOf": [
             {
-                    "query": "[format('Perf | where ObjectName == \"Memory\" and CounterName == \"% Committed Bytes In Use\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
+              "query": "[format('Perf | where ObjectName == \"Memory\" and CounterName == \"% Committed Bytes In Use\" | where CounterValue > {0} | summarize AggregatedValue = avg(CounterValue) by Computer, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
               "timeAggregation": "Average",
               "metricMeasureColumn": "AggregatedValue",
               "dimensions": [
                 {
-          "name": "Computer",
-          "operator": "Include",
-          "values": ["*"]
-        }
+                  "name": "Computer",
+                  "operator": "Include",
+                  "values": ["*"]
+                }
               ],
               "operator": "GreaterThan",
               "threshold": "[parameters('memoryThreshold')]",
@@ -525,15 +558,15 @@
         "criteria": {
           "allOf": [
             {
-             "query": "[format('Perf | where ObjectName == \"LogicalDisk\" and CounterName == \"% Free Space\" | where CounterValue < {0} | summarize AggregatedValue = avg(CounterValue) by Computer, InstanceName, bin(TimeGenerated, 15m)', sub(100, parameters('diskThreshold')))]",
+              "query": "[format('Perf | where ObjectName == \"LogicalDisk\" and CounterName == \"% Free Space\" | where CounterValue < {0} | summarize AggregatedValue = avg(CounterValue) by Computer, InstanceName, bin(TimeGenerated, 15m)', sub(100, parameters('diskThreshold')))]",
               "timeAggregation": "Average",
               "metricMeasureColumn": "AggregatedValue",
               "dimensions": [
                 {
-          "name": "Computer",
-          "operator": "Include",
-          "values": ["*"]
-        }
+                  "name": "Computer",
+                  "operator": "Include",
+                  "values": ["*"]
+                }
               ],
               "operator": "LessThan",
               "threshold": "[sub(100, parameters('diskThreshold'))]",
