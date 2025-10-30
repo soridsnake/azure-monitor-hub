@@ -280,7 +280,7 @@
     },
     "parameters": {
       "managedIdentityPrincipalId": {
-        "value": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId)]"
+        "value": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31', 'Full').properties.principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31', 'Full').properties.principalId)]"
       },
       "roleDefinitionId": {
         "value": "[variables('roleDefinitionId')]"
@@ -316,7 +316,8 @@
         }
       ]
     }
-  },
+  }
+},
   "dependsOn": [
     "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
   ]
@@ -415,7 +416,8 @@
       "dependsOn": [
         "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameWindows'))]",
         "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrNameLinux'))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+        "[extensionResourceId(subscription().id, 'Microsoft.Resources/deployments', format('role-assignment-{0}', parameters('deploymentName')))]"
       ]
     },
     {
