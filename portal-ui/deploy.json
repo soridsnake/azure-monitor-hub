@@ -162,6 +162,13 @@
         "description": "Enable Change Tracking & Inventory"
       }
     },
+    "changeTrackingDcrName": {
+      "type": "string",
+      "defaultValue": "[format('dcr-{0}-changetracking', parameters('deploymentName'))]",
+      "metadata": {
+        "description": "Name of the Change Tracking Data Collection Rule"
+      }
+    },
     "enableChangeTrackingAzureVM": {
       "type": "bool",
       "defaultValue": false,
@@ -174,20 +181,6 @@
       "defaultValue": false,
       "metadata": {
         "description": "Enable Change Tracking for Arc servers"
-      }
-    },
-    "changeTrackingVMPolicyAssignmentName": {
-      "type": "string",
-      "defaultValue": "[format('ct-vm-{0}', parameters('deploymentName'))]",
-      "metadata": {
-        "description": "Name of the Change Tracking VM Policy assignment"
-      }
-    },
-    "changeTrackingArcPolicyAssignmentName": {
-      "type": "string",
-      "defaultValue": "[format('ct-arc-{0}', parameters('deploymentName'))]",
-      "metadata": {
-        "description": "Name of the Change Tracking Arc Policy assignment"
       }
     },
     "enableCPUAlerts": {
@@ -441,7 +434,7 @@
       "condition": "[parameters('enableChangeTracking')]",
       "type": "Microsoft.Insights/dataCollectionRules",
       "apiVersion": "2022-06-01",
-      "name": "[format('dcr-{0}-changetracking', parameters('deploymentName'))]",
+      "name": "[parameters('changeTrackingDcrName')]",
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], json('{}'))]",
       "properties": {
@@ -454,7 +447,14 @@
                 "Microsoft-ConfigurationChangeV2",
                 "Microsoft-ConfigurationData"
               ],
-              "extensionName": "ChangeTracking-Windows"
+              "extensionName": "ChangeTracking-Windows",
+              "extensionSettings": {
+                "enableFiles": true,
+                "enableSoftware": true,
+                "enableRegistry": true,
+                "enableServices": true,
+                "enableInventory": true
+              }
             },
             {
               "name": "CTDataSource-Linux",
@@ -463,7 +463,14 @@
                 "Microsoft-ConfigurationChangeV2",
                 "Microsoft-ConfigurationData"
               ],
-              "extensionName": "ChangeTracking-Linux"
+              "extensionName": "ChangeTracking-Linux",
+              "extensionSettings": {
+                "enableFiles": true,
+                "enableSoftware": true,
+                "enableRegistry": false,
+                "enableServices": true,
+                "enableInventory": true
+              }
             }
           ]
         },
@@ -507,7 +514,7 @@
         },
         "parameters": {
           "policyAssignmentName": {
-            "value": "[parameters('changeTrackingVMPolicyAssignmentName')]"
+            "value": "[format('ct-vm-{0}', parameters('deploymentName'))]"
           },
           "managedIdentityResourceId": {
             "value": "[variables('managedIdentityId')]"
@@ -516,7 +523,7 @@
             "value": "[parameters('location')]"
           },
           "dcrResourceId": {
-            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]"
+            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('changeTrackingDcrName'))]"
           }
         },
         "template": {
@@ -537,7 +544,7 @@
             }
           },
           "variables": {
-            "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/ad1eeff9-20d7-4c82-a04e-903acab0bfc1"
+            "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/92a36f05-ebc9-4bba-9128-b47ad2ea3524"
           },
           "resources": [
             {
@@ -552,27 +559,24 @@
                 }
               },
               "properties": {
-                "displayName": "[format('Configure Windows VMs for ChangeTracking - {0}', parameters('policyAssignmentName'))]",
-                "description": "Automatically installs ChangeTracking extension on Windows Azure VMs and associates with DCR",
+                "displayName": "[format('Enable ChangeTracking for Azure VMs - {0}', parameters('policyAssignmentName'))]",
+                "description": "Enables Change Tracking and Inventory using Azure Monitoring Agent for Azure VMs",
                 "enforcementMode": "Default",
                 "policyDefinitionId": "[variables('policyDefinitionId')]",
                 "parameters": {
-                  "effect": {
-                    "value": "DeployIfNotExists"
+                  "dcrResourceId": {
+                    "value": "[parameters('dcrResourceId')]"
                   },
                   "bringYourOwnUserAssignedManagedIdentity": {
                     "value": true
                   },
-                  "userAssignedManagedIdentityResourceId": {
+                  "userAssignedIdentityResourceId": {
                     "value": "[parameters('managedIdentityResourceId')]"
-                  },
-                  "dcrResourceId": {
-                    "value": "[parameters('dcrResourceId')]"
                   }
                 },
                 "nonComplianceMessages": [
                   {
-                    "message": "Windows Azure VMs must have ChangeTracking extension and DCR association"
+                    "message": "Azure VMs must have Change Tracking enabled with Azure Monitor Agent"
                   }
                 ]
               }
@@ -587,7 +591,7 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('changeTrackingDcrName'))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
         "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
       ]
@@ -606,13 +610,13 @@
         },
         "parameters": {
           "policyAssignmentName": {
-            "value": "[parameters('changeTrackingArcPolicyAssignmentName')]"
+            "value": "[format('ct-arc-{0}', parameters('deploymentName'))]"
           },
           "location": {
             "value": "[parameters('location')]"
           },
           "dcrResourceId": {
-            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]"
+            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('changeTrackingDcrName'))]"
           }
         },
         "template": {
@@ -630,7 +634,7 @@
             }
           },
           "variables": {
-            "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/4bb303db-d051-4099-95d2-e3e1428a4cd5"
+            "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/53448c70-089b-4f52-8f38-89196d7f2de1"
           },
           "resources": [
             {
@@ -642,21 +646,18 @@
                 "type": "SystemAssigned"
               },
               "properties": {
-                "displayName": "[format('Configure ChangeTracking for Windows Arc machines - {0}', parameters('policyAssignmentName'))]",
-                "description": "Automatically deploys ChangeTracking extension on Windows Arc servers and associates with DCR",
+                "displayName": "[format('Enable ChangeTracking for Arc servers - {0}', parameters('policyAssignmentName'))]",
+                "description": "Enables Change Tracking and Inventory using Azure Monitoring Agent for Arc-enabled servers",
                 "enforcementMode": "Default",
                 "policyDefinitionId": "[variables('policyDefinitionId')]",
                 "parameters": {
-                  "effect": {
-                    "value": "DeployIfNotExists"
-                  },
                   "dcrResourceId": {
                     "value": "[parameters('dcrResourceId')]"
                   }
                 },
                 "nonComplianceMessages": [
                   {
-                    "message": "Windows Arc servers must have ChangeTracking extension and DCR association"
+                    "message": "Arc-enabled servers must have Change Tracking enabled with Azure Monitor Agent"
                   }
                 ]
               }
@@ -684,7 +685,7 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('changeTrackingDcrName'))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
         "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
       ]
@@ -947,6 +948,7 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('changeTrackingDcrName'))]",
         "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
       ]
     },
@@ -987,6 +989,7 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('changeTrackingDcrName'))]",
         "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
       ]
     }
@@ -1022,7 +1025,7 @@
     },
     "dcrChangeTrackingId": {
       "type": "string",
-      "value": "[if(parameters('enableChangeTracking'), resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName'))), '')]",
+      "value": "[if(parameters('enableChangeTracking'), resourceId('Microsoft.Insights/dataCollectionRules', parameters('changeTrackingDcrName')), '')]",
       "condition": "[parameters('enableChangeTracking')]",
       "metadata": {
         "description": "Resource ID of the Change Tracking Data Collection Rule (if enabled)"
