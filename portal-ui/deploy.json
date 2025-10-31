@@ -155,6 +155,41 @@
         "description": "Enable VM Insights processes and dependencies for Arc servers"
       }
     },
+    "enableChangeTracking": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable Change Tracking & Inventory"
+      }
+    },
+    "enableChangeTrackingAzureVM": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable Change Tracking for Azure VMs"
+      }
+    },
+    "enableChangeTrackingArc": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable Change Tracking for Arc servers"
+      }
+    },
+    "changeTrackingVMPolicyAssignmentName": {
+      "type": "string",
+      "defaultValue": "[format('ct-vm-{0}', parameters('deploymentName'))]",
+      "metadata": {
+        "description": "Name of the Change Tracking VM Policy assignment"
+      }
+    },
+    "changeTrackingArcPolicyAssignmentName": {
+      "type": "string",
+      "defaultValue": "[format('ct-arc-{0}', parameters('deploymentName'))]",
+      "metadata": {
+        "description": "Name of the Change Tracking Arc Policy assignment"
+      }
+    },
     "enableCPUAlerts": {
       "type": "bool",
       "defaultValue": true,
@@ -376,7 +411,8 @@
               "facilityNames": ["auth", "authpriv", "cron", "daemon", "kern", "syslog"],
               "logLevels": ["Error", "Critical", "Alert", "Emergency"]
             }
-          ]
+          ],
+          "extensions": "[if(parameters('enableChangeTracking'), createArray(createObject('name', 'CTDataSource-Windows', 'streams', createArray('Microsoft-ConfigurationChange', 'Microsoft-ConfigurationChangeV2', 'Microsoft-ConfigurationData'), 'extensionName', 'ChangeTracking-Windows'), createObject('name', 'CTDataSource-Linux', 'streams', createArray('Microsoft-ConfigurationChange', 'Microsoft-ConfigurationChangeV2', 'Microsoft-ConfigurationData'), 'extensionName', 'ChangeTracking-Linux')), createArray())]"
         },
         "destinations": {
           "logAnalytics": [
@@ -386,17 +422,8 @@
             }
           ]
         },
-        "dataFlows": [
-          {
-            "streams": ["Microsoft-InsightsMetrics"],
-            "destinations": ["VMInsightsPerf-Logs-Dest"]
-          },
-          {
-            "streams": ["Microsoft-Syslog"],
-            "destinations": ["VMInsightsPerf-Logs-Dest"]
-          }
-        ],
-        "description": "Unified Data Collection Rule for Azure VMs, Arc servers, Windows and Linux monitoring with VM Insights"
+        "dataFlows": "[concat(createArray(createObject('streams', createArray('Microsoft-InsightsMetrics'), 'destinations', createArray('VMInsightsPerf-Logs-Dest')), createObject('streams', createArray('Microsoft-Syslog'), 'destinations', createArray('VMInsightsPerf-Logs-Dest'))), if(parameters('enableChangeTracking'), createArray(createObject('streams', createArray('Microsoft-ConfigurationChange', 'Microsoft-ConfigurationChangeV2', 'Microsoft-ConfigurationData'), 'destinations', createArray('VMInsightsPerf-Logs-Dest'))), createArray()))]",
+        "description": "Unified Data Collection Rule for Azure VMs, Arc servers, Windows and Linux monitoring with VM Insights and Change Tracking"
       },
       "dependsOn": [
         "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
@@ -729,6 +756,288 @@
       },
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-arc-servers-{0}', parameters('deploymentName')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName'))]",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "parameters": {
+          "policyAssignmentName": {
+            "value": "[parameters('changeTrackingVMPolicyAssignmentName')]"
+          },
+          "managedIdentityResourceId": {
+            "value": "[variables('managedIdentityId')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceId": {
+            "value": "[variables('workspaceId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "policyAssignmentName": {
+              "type": "string"
+            },
+            "managedIdentityResourceId": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "workspaceId": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/ad1eeff9-20d7-4c82-a04e-903acab0bfc1"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('policyAssignmentName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[parameters('managedIdentityResourceId')]": {}
+                }
+              },
+              "properties": {
+                "displayName": "[format('Configure Windows VMs for ChangeTracking - {0}', parameters('policyAssignmentName'))]",
+                "description": "Automatically installs ChangeTracking extension on Windows Azure VMs for Change Tracking and Inventory monitoring",
+                "enforcementMode": "Default",
+                "policyDefinitionId": "[variables('policyDefinitionId')]",
+                "parameters": {
+                  "effect": {
+                    "value": "DeployIfNotExists"
+                  },
+                  "bringYourOwnUserAssignedManagedIdentity": {
+                    "value": true
+                  },
+                  "restrictBringYourOwnUserAssignedIdentityToSubscription": {
+                    "value": false
+                  },
+                  "userAssignedIdentityResourceId": {
+                    "value": "[parameters('managedIdentityResourceId')]"
+                  },
+                  "userAssignedManagedIdentityName": {
+                    "value": "[split(parameters('managedIdentityResourceId'), '/')[8]]"
+                  },
+                  "userAssignedManagedIdentityResourceGroup": {
+                    "value": "[split(parameters('managedIdentityResourceId'), '/')[4]]"
+                  },
+                  "applicableLocations": {
+                    "value": [
+                      "australiacentral", "australiacentral2", "australiaeast", "australiasoutheast",
+                      "brazilsouth", "brazilsoutheast", "canadacentral", "canadaeast",
+                      "centralindia", "centralus", "centraluseuap", "eastasia", "eastus", "eastus2", "eastus2euap",
+                      "francecentral", "francesouth", "germanynorth", "germanywestcentral",
+                      "israelcentral", "italynorth", "japaneast", "japanwest",
+                      "jioindiacentral", "jioindiawest", "koreacentral", "koreasouth",
+                      "malaysiasouth", "mexicocentral", "northcentralus", "northeurope",
+                      "norwayeast", "norwaywest", "polandcentral", "qatarcentral",
+                      "southafricanorth", "southafricawest", "southcentralus", "southeastasia", "southindia",
+                      "spaincentral", "swedencentral", "swedensouth", "switzerlandnorth", "switzerlandwest",
+                      "taiwannorth", "taiwannorthwest", "uaecentral", "uaenorth",
+                      "uksouth", "ukwest", "westcentralus", "westeurope", "westindia", "westus", "westus2", "westus3"
+                    ]
+                  }
+                },
+                "nonComplianceMessages": [
+                  {
+                    "message": "Windows Azure VMs must have ChangeTracking extension installed for Change Tracking and Inventory monitoring"
+                  }
+                ]
+              }
+            }
+          ],
+          "outputs": {
+            "policyAssignmentId": {
+              "type": "string",
+              "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName'))]",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "parameters": {
+          "policyAssignmentName": {
+            "value": "[parameters('changeTrackingArcPolicyAssignmentName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "policyAssignmentName": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/4bb303db-d051-4099-95d2-e3e1428a4cd5"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "[parameters('policyAssignmentName')]",
+              "location": "[parameters('location')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "displayName": "[format('Configure ChangeTracking Extension for Windows Arc machines - {0}', parameters('policyAssignmentName'))]",
+                "description": "Automatically deploys ChangeTracking extension on Windows Arc-enabled servers for Change Tracking and Inventory monitoring",
+                "enforcementMode": "Default",
+                "policyDefinitionId": "[variables('policyDefinitionId')]",
+                "parameters": {
+                  "effect": {
+                    "value": "DeployIfNotExists"
+                  },
+                  "applicableLocations": {
+                    "value": [
+                      "australiacentral", "australiacentral2", "australiaeast", "australiasoutheast",
+                      "brazilsouth", "brazilsoutheast", "canadacentral", "canadaeast",
+                      "centralindia", "centralus", "centraluseuap", "eastasia", "eastus", "eastus2", "eastus2euap",
+                      "francecentral", "francesouth", "germanynorth", "germanywestcentral",
+                      "israelcentral", "italynorth", "japaneast", "japanwest",
+                      "jioindiacentral", "jioindiawest", "koreacentral", "koreasouth",
+                      "malaysiasouth", "mexicocentral", "northcentralus", "northeurope",
+                      "norwayeast", "norwaywest", "polandcentral", "qatarcentral",
+                      "southafricanorth", "southafricawest", "southcentralus", "southeastasia", "southindia",
+                      "spaincentral", "swedencentral", "swedensouth", "switzerlandnorth", "switzerlandwest",
+                      "taiwannorth", "taiwannorthwest", "uaecentral", "uaenorth",
+                      "uksouth", "ukwest", "westcentralus", "westeurope", "westindia", "westus", "westus2", "westus3"
+                    ]
+                  }
+                },
+                "nonComplianceMessages": [
+                  {
+                    "message": "Windows Arc-enabled servers must have ChangeTracking extension installed for Change Tracking and Inventory monitoring"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ChangeTrackingArcContributor')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
+                "principalType": "ServicePrincipal",
+                "description": "Allows Change Tracking Arc Policy to deploy extensions"
+              },
+              "dependsOn": [
+                "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "policyAssignmentId": {
+              "type": "string",
+              "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+            },
+            "policyAssignmentPrincipalId": {
+              "type": "string",
+              "value": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "[format('remediation-ct-azure-vms-{0}', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "kind": "AzurePowerShell",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', variables('managedIdentityId'))]": {}
+        }
+      },
+      "properties": {
+        "azPowerShellVersion": "10.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT30M",
+        "cleanupPreference": "OnSuccess",
+        "arguments": "[format('-PolicyAssignmentId \"{0}\"', if(and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM')), reference(format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, ''))]",
+        "scriptContent": "param([string]$PolicyAssignmentId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"POLICY REMEDIATION - Change Tracking Azure VMs\"\nWrite-Host \"========================================\"\nWrite-Host \"Policy Assignment ID: $PolicyAssignmentId\"\nWrite-Host \"\"\n\nif ([string]::IsNullOrWhiteSpace($PolicyAssignmentId)) {\n    Write-Host \"No policy assignment ID provided\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Skipped'\n    exit 0\n}\n\n# Wait for policy to propagate\nWrite-Host \"Waiting 90 seconds for policy propagation...\"\nStart-Sleep -Seconds 90\n\ntry {\n    $policyAssignment = Get-AzPolicyAssignment -Id $PolicyAssignmentId -ErrorAction Stop\n    \n    Write-Host \"Policy Assignment: $($policyAssignment.Name)\"\n    Write-Host \"Scope: $($policyAssignment.Properties.Scope)\"\n    Write-Host \"\"\n    \n    Write-Host \"Creating remediation task for Change Tracking Azure VMs...\" -ForegroundColor Cyan\n    \n    $remediationName = \"remediate-ct-vm-$(Get-Date -Format 'yyyyMMddHHmmss')\"\n    \n    $remediation = Start-AzPolicyRemediation `\n        -Name $remediationName `\n        -PolicyAssignmentId $PolicyAssignmentId `\n        -ResourceDiscoveryMode ReEvaluateCompliance `\n        -ErrorAction Stop\n    \n    Write-Host \"✓ SUCCESS: $($remediation.Id)\" -ForegroundColor Green\n    Write-Host \"\"\n    Write-Host \"Remediation task is running in the background\" -ForegroundColor Cyan\n    Write-Host \"Check Azure Portal > Policy > Compliance for progress\" -ForegroundColor Cyan\n    Write-Host \"Azure VMs will have Change Tracking configured within 15-30 minutes\" -ForegroundColor Cyan\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['remediationId'] = $remediation.Id\n    $DeploymentScriptOutputs['status'] = 'Completed'\n}\ncatch {\n    Write-Host \"========================================\"\n    Write-Host \"ERROR\"\n    Write-Host \"========================================\"\n    Write-Host $_.Exception.Message -ForegroundColor Red\n    Write-Host \"\"\n    Write-Host \"You can create remediation task manually from Azure Portal\" -ForegroundColor Yellow\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Failed'\n    $DeploymentScriptOutputs['error'] = $_.Exception.Message\n}\n"
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName')))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
+      ]
+    },
+    {
+      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc'))]",
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "[format('remediation-ct-arc-servers-{0}', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "kind": "AzurePowerShell",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', variables('managedIdentityId'))]": {}
+        }
+      },
+      "properties": {
+        "azPowerShellVersion": "10.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT30M",
+        "cleanupPreference": "OnSuccess",
+        "arguments": "[format('-PolicyAssignmentId \"{0}\"', if(and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc')), reference(format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, ''))]",
+        "scriptContent": "param([string]$PolicyAssignmentId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"POLICY REMEDIATION - Change Tracking Arc Servers\"\nWrite-Host \"========================================\"\nWrite-Host \"Policy Assignment ID: $PolicyAssignmentId\"\nWrite-Host \"\"\n\nif ([string]::IsNullOrWhiteSpace($PolicyAssignmentId)) {\n    Write-Host \"No policy assignment ID provided\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Skipped'\n    exit 0\n}\n\n# Wait for policy to propagate\nWrite-Host \"Waiting 90 seconds for policy propagation...\"\nStart-Sleep -Seconds 90\n\ntry {\n    $policyAssignment = Get-AzPolicyAssignment -Id $PolicyAssignmentId -ErrorAction Stop\n    \n    Write-Host \"Policy Assignment: $($policyAssignment.Name)\"\n    Write-Host \"Scope: $($policyAssignment.Properties.Scope)\"\n    Write-Host \"\"\n    \n    Write-Host \"Creating remediation task for Change Tracking Arc Servers...\" -ForegroundColor Cyan\n    \n    $remediationName = \"remediate-ct-arc-$(Get-Date -Format 'yyyyMMddHHmmss')\"\n    \n    $remediation = Start-AzPolicyRemediation `\n        -Name $remediationName `\n        -PolicyAssignmentId $PolicyAssignmentId `\n        -ResourceDiscoveryMode ReEvaluateCompliance `\n        -ErrorAction Stop\n    \n    Write-Host \"✓ SUCCESS: $($remediation.Id)\" -ForegroundColor Green\n    Write-Host \"\"\n    Write-Host \"Remediation task is running in the background\" -ForegroundColor Cyan\n    Write-Host \"Check Azure Portal > Policy > Compliance for progress\" -ForegroundColor Cyan\n    Write-Host \"Arc servers will have Change Tracking configured within 15-30 minutes\" -ForegroundColor Cyan\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['remediationId'] = $remediation.Id\n    $DeploymentScriptOutputs['status'] = 'Completed'\n}\ncatch {\n    Write-Host \"========================================\"\n    Write-Host \"ERROR\"\n    Write-Host \"========================================\"\n    Write-Host $_.Exception.Message -ForegroundColor Red\n    Write-Host \"\"\n    Write-Host \"You can create remediation task manually from Azure Portal\" -ForegroundColor Yellow\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Failed'\n    $DeploymentScriptOutputs['error'] = $_.Exception.Message\n}\n"
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
       ]
     },
@@ -1075,6 +1384,22 @@
       "condition": "[parameters('enableArcPolicy')]",
       "metadata": {
         "description": "Resource ID of the Arc Policy Assignment (if enabled)"
+      }
+    },
+    "changeTrackingVMPolicyAssignmentId": {
+      "type": "string",
+      "value": "[if(and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM')), reference(format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, '')]",
+      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
+      "metadata": {
+        "description": "Resource ID of the Change Tracking VM Policy Assignment (if enabled)"
+      }
+    },
+    "changeTrackingArcPolicyAssignmentId": {
+      "type": "string",
+      "value": "[if(and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc')), reference(format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, '')]",
+      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc'))]",
+      "metadata": {
+        "description": "Resource ID of the Change Tracking Arc Policy Assignment (if enabled)"
       }
     },
     "actionGroupId": {
