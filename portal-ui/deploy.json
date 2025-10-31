@@ -378,123 +378,119 @@
       ]
     },
     {
-      "condition": "[parameters('enableAzurePolicy')]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "[format('policyAssignment-all-vms-{0}', parameters('deploymentName'))]",
-      "subscriptionId": "[subscription().subscriptionId]",
-      "location": "[parameters('location')]",
-      "properties": {
-        "mode": "Incremental",
-        "expressionEvaluationOptions": {
-          "scope": "inner"
+  "condition": "[parameters('enableAzurePolicy')]",
+  "type": "Microsoft.Resources/deployments",
+  "apiVersion": "2022-09-01",
+  "name": "[format('policyAssignment-all-vms-{0}', parameters('deploymentName'))]",
+  "subscriptionId": "[subscription().subscriptionId]",
+  "location": "[parameters('location')]",
+  "properties": {
+    "mode": "Incremental",
+    "expressionEvaluationOptions": {
+      "scope": "inner"
+    },
+    "parameters": {
+      "policyAssignmentName": {
+        "value": "[format('{0}-all-vms', parameters('policyAssignmentName'))]"
+      },
+      "dcrResourceId": {
+        "value": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]"
+      },
+      "managedIdentityResourceId": {
+        "value": "[variables('managedIdentityId')]"
+      },
+      "location": {
+        "value": "[parameters('location')]"
+      },
+      "deploymentName": {
+        "value": "[parameters('deploymentName')]"
+      }
+    },
+    "template": {
+      "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "policyAssignmentName": {
+          "type": "string"
         },
-        "parameters": {
-          "policyAssignmentName": {
-            "value": "[format('{0}-all-vms', parameters('policyAssignmentName'))]"
-          },
-          "dcrResourceId": {
-            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]"
-          },
-          "managedIdentityResourceId": {
-            "value": "[variables('managedIdentityId')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "deploymentName": {
-            "value": "[parameters('deploymentName')]"
-          }
+        "dcrResourceId": {
+          "type": "string"
         },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "policyAssignmentName": {
-              "type": "string"
-            },
-            "dcrResourceId": {
-              "type": "string"
-            },
-            "managedIdentityResourceId": {
-              "type": "string"
-            },
-            "location": {
-              "type": "string"
-            },
-            "deploymentName": {
-              "type": "string"
-            }
-          },
-          "variables": {
-            "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/924bfe3a-762f-40e7-86dd-5c8b95eb09e6"
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/policyAssignments",
-              "apiVersion": "2023-04-01",
-              "name": "[parameters('policyAssignmentName')]",
-              "location": "[parameters('location')]",
-              "identity": {
-                "type": "UserAssigned",
-                "userAssignedIdentities": {
-                  "[parameters('managedIdentityResourceId')]": {}
-                }
-              },
-              "properties": {
-                "displayName": "[format('Enable Azure Monitor for VMs - {0}', parameters('policyAssignmentName'))]",
-                "description": "Automatically configures Windows and Linux VMs with Azure Monitor Agent using user-assigned managed identity and associates with unified Data Collection Rule",
-                "enforcementMode": "Default",
-                "policyDefinitionId": "[variables('policyDefinitionId')]",
-                "parameters": {
-                  "bringYourOwnUserAssignedManagedIdentity": {
-                    "value": true
-                  },
-                  "scopeToSupportedImages": {
-                    "value": false
-                  },
-                  "dcrResourceId": {
-                    "value": "[parameters('dcrResourceId')]"
-                  },
-                  "restrictBringYourOwnUserAssignedIdentityToSubscription": {
-                    "value": false
-                  },
-                  "userAssignedIdentityResourceId": {
-                    "value": "[parameters('managedIdentityResourceId')]"
-                  },
-                  "userAssignedManagedIdentityResourceGroup": {
-                    "value": "[split(parameters('managedIdentityResourceId'), '/')[4]]"
-                  },
-                  "userAssignedManagedIdentityName": {
-                    "value": "[split(parameters('managedIdentityResourceId'), '/')[8]]"
-                  }
-                },
-                "nonComplianceMessages": [
-                  {
-                    "message": "VMs must have Azure Monitor Agent installed with user-assigned managed identity and configured with the unified Data Collection Rule"
-                  }
-                ]
-              }
-            }
-          ],
-          "outputs": {
-            "policyAssignmentId": {
-              "type": "string",
-              "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-            },
-            "policyAssignmentPrincipalId": {
-              "type": "string",
-              "value": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]"
-            }
-          }
+        "managedIdentityResourceId": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "deploymentName": {
+          "type": "string"
         }
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-      ]
-    },
+      "variables": {
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/924bfe3a-762f-40e7-86dd-5c8b95eb09e6"
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Authorization/policyAssignments",
+          "apiVersion": "2023-04-01",
+          "name": "[parameters('policyAssignmentName')]",
+          "location": "[parameters('location')]",
+          "identity": {
+            "type": "UserAssigned",
+            "userAssignedIdentities": {
+              "[parameters('managedIdentityResourceId')]": {}
+            }
+          },
+          "properties": {
+            "displayName": "[format('Enable Azure Monitor for VMs - {0}', parameters('policyAssignmentName'))]",
+            "description": "Automatically configures Windows and Linux VMs with Azure Monitor Agent using user-assigned managed identity and associates with unified Data Collection Rule",
+            "enforcementMode": "Default",
+            "policyDefinitionId": "[variables('policyDefinitionId')]",
+            "parameters": {
+              "bringYourOwnUserAssignedManagedIdentity": {
+                "value": true
+              },
+              "scopeToSupportedImages": {
+                "value": false
+              },
+              "dcrResourceId": {
+                "value": "[parameters('dcrResourceId')]"
+              },
+              "restrictBringYourOwnUserAssignedIdentityToSubscription": {
+                "value": false
+              },
+              "userAssignedIdentityResourceId": {
+                "value": "[parameters('managedIdentityResourceId')]"
+              },
+              "userAssignedManagedIdentityResourceGroup": {
+                "value": "[split(parameters('managedIdentityResourceId'), '/')[4]]"
+              },
+              "userAssignedManagedIdentityName": {
+                "value": "[split(parameters('managedIdentityResourceId'), '/')[8]]"
+              }
+            },
+            "nonComplianceMessages": [
+              {
+                "message": "VMs must have Azure Monitor Agent installed with user-assigned managed identity and configured with the unified Data Collection Rule"
+              }
+            ]
+          }
+        }
+      ],
+      "outputs": {
+        "policyAssignmentId": {
+          "type": "string",
+          "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+        }
+      }
+    }
+  },
+  "dependsOn": [
+    "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+    "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
+  ]
+},
     {
       "condition": "[parameters('enableAzurePolicy')]",
       "type": "Microsoft.Resources/deploymentScripts",
