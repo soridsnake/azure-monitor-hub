@@ -423,7 +423,7 @@
                 "visible": true,
                 "options": {
                   "icon": "Info",
-                  "text": "📌 Additional Service Monitoring Alerts:\n\n• AD Connect Services (Critical)\n• Domain Controller Services (Critical)\n• Disk Metrics Not Available (Warning)\n\nThese alerts are automatically created. Service monitoring alerts require Change Tracking to be enabled (configured in Automation step)."
+                  "text": "📌 Additional Monitoring Alerts Always Created:\n\n• Disk Metrics Not Available (Warning)\n\n🔧 Service Monitoring Alerts (require Change Tracking):\n\n• AD Connect Services (Critical)\n• Domain Controller Services (Critical)\n\nService alerts are only created if Change Tracking is enabled in the Automation step."
                 }
               }
             ]
@@ -474,6 +474,19 @@
                 "toolTip": "Enable Change Tracking and Inventory to track changes to files, registry, software, and services on VMs and Arc servers"
               },
               {
+                "name": "changeTrackingDcrName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Change Tracking DCR Name",
+                "defaultValue": "[concat('dcr-', basics('deploymentName'), '-changetracking')]",
+                "toolTip": "Name for the Change Tracking Data Collection Rule",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{3,64}$",
+                  "validationMessage": "Alphanumeric and hyphens. Length 3-64."
+                },
+                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
+              },
+              {
                 "name": "changeTrackingInfo",
                 "type": "Microsoft.Common.InfoBox",
                 "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]",
@@ -484,20 +497,46 @@
                 }
               },
               {
+                "name": "targetSystemsLabel",
+                "type": "Microsoft.Common.TextBlock",
+                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]",
+                "options": {
+                  "text": "Select target systems for Change Tracking:"
+                }
+              },
+              {
                 "name": "enableChangeTrackingAzureVM",
                 "type": "Microsoft.Common.CheckBox",
-                "label": "Enable Change Tracking for Azure VMs",
+                "label": "Enable for Azure VMs",
                 "defaultValue": true,
-                "toolTip": "Install Change Tracking extension on Azure VMs",
+                "toolTip": "Deploy Change Tracking extension on Azure VMs using Azure Policy",
                 "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
               },
               {
                 "name": "enableChangeTrackingArc",
                 "type": "Microsoft.Common.CheckBox",
-                "label": "Enable Change Tracking for Arc Servers",
+                "label": "Enable for Arc-enabled Servers",
                 "defaultValue": true,
-                "toolTip": "Install Change Tracking extension on Arc-enabled servers",
+                "toolTip": "Deploy Change Tracking extension on Arc-enabled servers using Azure Policy",
                 "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
+              },
+              {
+                "name": "changeTrackingWarning",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[and(steps('automation').changeTrackingSection.enableChangeTracking, and(not(steps('automation').changeTrackingSection.enableChangeTrackingAzureVM), not(steps('automation').changeTrackingSection.enableChangeTrackingArc)))]",
+                "options": {
+                  "icon": "Warning",
+                  "text": "⚠️ Change Tracking is enabled but no target systems are selected. Please enable at least one target system (Azure VMs or Arc servers)."
+                }
+              },
+              {
+                "name": "changeTrackingDeploymentInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[and(steps('automation').changeTrackingSection.enableChangeTracking, or(steps('automation').changeTrackingSection.enableChangeTrackingAzureVM, steps('automation').changeTrackingSection.enableChangeTrackingArc))]",
+                "options": {
+                  "icon": "Info",
+                  "text": "Azure Policy will automatically deploy the ChangeTracking-Windows and ChangeTracking-Linux extensions to the selected target systems and associate them with the Change Tracking DCR."
+                }
               }
             ]
           },
@@ -628,10 +667,9 @@
       "arcPolicyAssignmentName": "[if(steps('automation').arcPolicySection.enableArcPolicy, steps('automation').arcPolicySection.policyAssignmentName, concat('ama-arc-monitoring-', basics('deploymentName')))]",
       "enableProcessesAndDependencies": "[if(steps('automation').arcPolicySection.enableArcPolicy, steps('automation').arcPolicySection.enableProcessesAndDependencies, true)]",
       "enableChangeTracking": "[steps('automation').changeTrackingSection.enableChangeTracking]",
+      "changeTrackingDcrName": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.changeTrackingDcrName, concat('dcr-', basics('deploymentName'), '-changetracking'))]",
       "enableChangeTrackingAzureVM": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.enableChangeTrackingAzureVM, false)]",
       "enableChangeTrackingArc": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.enableChangeTrackingArc, false)]",
-      "changeTrackingVMPolicyAssignmentName": "[concat('ct-vm-', basics('deploymentName'))]",
-      "changeTrackingArcPolicyAssignmentName": "[concat('ct-arc-', basics('deploymentName'))]",
       "enableCPUAlerts": "[steps('monitoring').enabledAlertsSection.enableCPUAlerts]",
       "cpuThreshold": "[steps('monitoring').alertThresholdsSection.cpuThreshold]",
       "enableMemoryAlerts": "[steps('monitoring').enabledAlertsSection.enableMemoryAlerts]",
