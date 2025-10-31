@@ -164,7 +164,7 @@
     },
     "cpuThreshold": {
       "type": "int",
-      "defaultValue": 85,
+      "defaultValue": 95,
       "minValue": 50,
       "maxValue": 100,
       "metadata": {
@@ -196,7 +196,7 @@
     },
     "diskThreshold": {
       "type": "int",
-      "defaultValue": 85,
+      "defaultValue": 95,
       "minValue": 50,
       "maxValue": 100,
       "metadata": {
@@ -431,33 +431,33 @@
       ]
     },
     {
-  "condition": "[parameters('monitorExistingArcServers')]",
-  "type": "Microsoft.Resources/deploymentScripts",
-  "apiVersion": "2020-10-01",
-  "name": "[format('setup-arc-servers-{0}', parameters('deploymentName'))]",
-  "location": "[parameters('location')]",
-  "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Resources/deploymentScripts'), parameters('tagsByResource')['Microsoft.Resources/deploymentScripts'], json('{}'))]",
-  "kind": "AzurePowerShell",
-  "identity": {
-    "type": "UserAssigned",
-    "userAssignedIdentities": {
-      "[format('{0}', variables('managedIdentityId'))]": {}
-    }
-  },
-  "properties": {
-    "azPowerShellVersion": "10.0",
-    "retentionInterval": "PT1H",
-    "timeout": "PT60M",
-    "cleanupPreference": "OnSuccess",
-    "arguments": "[format('-ArcServerIdsBase64 \"{0}\" -MonitorAllArcServers ${1} -DCRId \"{2}\"', base64(string(parameters('selectedArcServerIds'))), parameters('monitorAllArcServers'), resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')))]",
-    "scriptContent": "param(\n    [string]$ArcServerIdsBase64,\n    [bool]$MonitorAllArcServers,\n    [string]$DCRId\n)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"Arc Server Monitoring Setup\"\nWrite-Host \"========================================\"\nWrite-Host \"Monitor All Arc Servers: $MonitorAllArcServers\"\nWrite-Host \"DCR ID: $DCRId\"\nWrite-Host \"\"\n\n# Install Az.ConnectedMachine module\nWrite-Host \"Installing Az.ConnectedMachine module...\" -ForegroundColor Cyan\ntry {\n    if (-not (Get-Module -ListAvailable -Name Az.ConnectedMachine)) {\n        Install-Module -Name Az.ConnectedMachine -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop\n        Write-Host \"✓ Az.ConnectedMachine module installed successfully\" -ForegroundColor Green\n    } else {\n        Write-Host \"✓ Az.ConnectedMachine module already installed\" -ForegroundColor Green\n    }\n    Import-Module Az.ConnectedMachine -ErrorAction Stop\n    Write-Host \"✓ Az.ConnectedMachine module imported\" -ForegroundColor Green\n}\ncatch {\n    Write-Host \"ERROR: Failed to install/import Az.ConnectedMachine module: $_\" -ForegroundColor Red\n    Write-Host \"This module is required to manage Arc-enabled servers\" -ForegroundColor Red\n    exit 1\n}\nWrite-Host \"\"\n\n# Wait for role propagation\nWrite-Host \"Waiting 60 seconds for role assignment propagation...\"\nStart-Sleep -Seconds 60\n\n$arcArray = @()\n\nif ($MonitorAllArcServers) {\n    Write-Host \"Discovering all Arc-enabled servers in subscription...\"\n    try {\n        $allArcServers = Get-AzConnectedMachine -ErrorAction Stop\n        Write-Host \"Found $($allArcServers.Count) Arc-enabled servers\"\n        \n        foreach ($arc in $allArcServers) {\n            $arcArray += $arc.Id\n            Write-Host \"  - $($arc.Name)\"\n        }\n    }\n    catch {\n        Write-Host \"ERROR: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\nelse {\n    Write-Host \"Decoding Arc Server IDs from Base64...\"\n    \n    try {\n        $ArcIdsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($ArcServerIdsBase64))\n        Write-Host \"Decoded JSON: $ArcIdsJson\"\n        \n        if ([string]::IsNullOrWhiteSpace($ArcIdsJson) -or $ArcIdsJson -eq '[]') {\n            Write-Host \"ERROR: No Arc servers provided!\" -ForegroundColor Red\n            exit 1\n        }\n        \n        $arcArray = $ArcIdsJson | ConvertFrom-Json\n        Write-Host \"Parsed $($arcArray.Count) Arc server(s)\"\n    }\n    catch {\n        Write-Host \"ERROR: Failed to decode/parse: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\n\nif ($arcArray.Count -eq 0) {\n    Write-Host \"No Arc servers to process\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'NoArcServers'\n    exit 0\n}\n\nWrite-Host \"\"\nWrite-Host \"Processing $($arcArray.Count) Arc server(s)...\"\nWrite-Host \"\"\n\n$results = @()\n$successCount = 0\n$partialCount = 0\n$failCount = 0\n\nforeach ($arcId in $arcArray) {\n    Write-Host \"========================================\"\n    Write-Host \"Processing: $arcId\" -ForegroundColor Cyan\n    Write-Host \"========================================\"\n    \n    $arcName = $arcId.Split('/')[-1]\n    $arcRG = $arcId.Split('/')[4]\n    \n    Write-Host \"Arc Server Name: $arcName\"\n    Write-Host \"Resource Group: $arcRG\"\n    \n    $amaInstalled = $false\n    $dcrAssociated = $false\n    $arcStatus = \"Unknown\"\n    $errorMessage = \"\"\n    \n    try {\n        # Get Arc machine details\n        $arc = Get-AzConnectedMachine -ResourceGroupName $arcRG -Name $arcName -ErrorAction Stop\n        $osType = $arc.OSName\n        $location = $arc.Location\n        $arcStatus = $arc.Status\n        \n        Write-Host \"OS Type: $osType\"\n        Write-Host \"Location: $location\"\n        Write-Host \"Status: $arcStatus\" -ForegroundColor $(if ($arcStatus -eq 'Connected') { 'Green' } else { 'Yellow' })\n        Write-Host \"\"\n        \n        # Determine extension details\n        if ($osType -like \"*Linux*\") {\n            $extensionName = \"AzureMonitorLinuxAgent\"\n            $extensionPublisher = \"Microsoft.Azure.Monitor\"\n            $extensionType = \"AzureMonitorLinuxAgent\"\n        }\n        else {\n            $extensionName = \"AzureMonitorWindowsAgent\"\n            $extensionPublisher = \"Microsoft.Azure.Monitor\"\n            $extensionType = \"AzureMonitorWindowsAgent\"\n        }\n        \n        # Step 1: Check and install AMA\n        Write-Host \"[1/2] Azure Monitor Agent...\" -ForegroundColor Yellow\n        \n        if ($arcStatus -eq 'Connected') {\n            $existingExtension = Get-AzConnectedMachineExtension `\n                -ResourceGroupName $arcRG `\n                -MachineName $arcName `\n                -Name $extensionName `\n                -ErrorAction SilentlyContinue\n            \n            if ($existingExtension) {\n                Write-Host \"  ✓ AMA already installed\" -ForegroundColor Green\n                $amaInstalled = $true\n            }\n            else {\n                Write-Host \"  Installing Azure Monitor Agent...\" -ForegroundColor Cyan\n                \n                try {\n                    $extensionResult = New-AzConnectedMachineExtension `\n                        -ResourceGroupName $arcRG `\n                        -MachineName $arcName `\n                        -Name $extensionName `\n                        -Publisher $extensionPublisher `\n                        -ExtensionType $extensionType `\n                        -Location $location `\n                        -EnableAutomaticUpgrade `\n                        -ErrorAction Stop\n                    \n                    Write-Host \"  ✓ AMA installed successfully\" -ForegroundColor Green\n                    $amaInstalled = $true\n                }\n                catch {\n                    Write-Host \"  ✗ Failed to install AMA: $($_.Exception.Message)\" -ForegroundColor Red\n                    $errorMessage = \"AMA: $($_.Exception.Message)\"\n                    $amaInstalled = $false\n                }\n            }\n        }\n        else {\n            Write-Host \"  ⚠ Arc server is not connected\" -ForegroundColor Yellow\n            $amaInstalled = $false\n        }\n        \n        Write-Host \"\"\n        \n        # Step 2: Associate DCR\n        Write-Host \"[2/2] Data Collection Rule Association...\" -ForegroundColor Yellow\n        \n        $associationName = \"dcr-association-$arcName\"\n        \n        try {\n            $existingAssociation = Get-AzDataCollectionRuleAssociation `\n                -TargetResourceId $arcId `\n                -AssociationName $associationName `\n                -ErrorAction SilentlyContinue\n            \n            if ($existingAssociation) {\n                Write-Host \"  ✓ DCR association already exists\" -ForegroundColor Green\n                $dcrAssociated = $true\n            }\n            else {\n                $association = New-AzDataCollectionRuleAssociation `\n                    -TargetResourceId $arcId `\n                    -AssociationName $associationName `\n                    -DataCollectionRuleId $DCRId `\n                    -ErrorAction Stop\n                \n                Write-Host \"  ✓ DCR associated successfully\" -ForegroundColor Green\n                $dcrAssociated = $true\n            }\n        }\n        catch {\n            Write-Host \"  ✗ Failed to associate DCR: $($_.Exception.Message)\" -ForegroundColor Red\n            if ($errorMessage) {\n                $errorMessage += \"; DCR: $($_.Exception.Message)\"\n            } else {\n                $errorMessage = \"DCR: $($_.Exception.Message)\"\n            }\n            $dcrAssociated = $false\n        }\n        \n        Write-Host \"\"\n        \n        # Determine overall status\n        if ($dcrAssociated) {\n            if ($amaInstalled -or $arcStatus -ne 'Connected') {\n                Write-Host \"✓ Arc server configured successfully!\" -ForegroundColor Green\n                if ($arcStatus -ne 'Connected') {\n                    Write-Host \"  Note: Reconnect Arc server to complete AMA installation\" -ForegroundColor Cyan\n                }\n                $successCount++\n                $status = \"Success\"\n            }\n            else {\n                Write-Host \"⚠ Partially configured (DCR OK, AMA failed)\" -ForegroundColor Yellow\n                $partialCount++\n                $status = \"Partial\"\n            }\n        }\n        else {\n            Write-Host \"✗ Configuration failed\" -ForegroundColor Red\n            $failCount++\n            $status = \"Failed\"\n        }\n        \n        Write-Host \"\"\n        \n        $results += @{\n            ArcServerName = $arcName\n            Status = $status\n            OSType = $osType\n            ArcStatus = $arcStatus\n            AMAInstalled = $amaInstalled\n            DCRAssociated = $dcrAssociated\n            Error = $errorMessage\n        }\n    }\n    catch {\n        Write-Host \"\"\n        Write-Host \"✗ FAILED: $($_.Exception.Message)\" -ForegroundColor Red\n        Write-Host \"\"\n        \n        $failCount++\n        \n        $results += @{\n            ArcServerName = $arcName\n            Status = \"Failed\"\n            Error = $_.Exception.Message\n        }\n    }\n}\n\nWrite-Host \"========================================\"\nWrite-Host \"SUMMARY\"\nWrite-Host \"========================================\"\nWrite-Host \"Total Arc Servers: $($arcArray.Count)\"\nWrite-Host \"✓ Fully Configured: $successCount\" -ForegroundColor Green\nif ($partialCount -gt 0) {\n    Write-Host \"⚠ Partially Configured: $partialCount (DCR OK, AMA pending)\" -ForegroundColor Yellow\n}\nif ($failCount -gt 0) {\n    Write-Host \"✗ Failed: $failCount\" -ForegroundColor Red\n}\nWrite-Host \"========================================\"\nWrite-Host \"\"\n\nif ($successCount -gt 0 -or $partialCount -gt 0) {\n    Write-Host \"DCR associations are active on $(($successCount + $partialCount)) Arc server(s)\" -ForegroundColor Green\n    if ($partialCount -gt 0) {\n        Write-Host \"Reconnect Arc servers to complete AMA installation\" -ForegroundColor Cyan\n    }\n    Write-Host \"Data will start appearing in Log Analytics within 5-10 minutes\" -ForegroundColor Cyan\n}\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['results'] = $results | ConvertTo-Json -Compress\n$DeploymentScriptOutputs['successCount'] = $successCount\n$DeploymentScriptOutputs['partialCount'] = $partialCount\n$DeploymentScriptOutputs['failCount'] = $failCount\n$DeploymentScriptOutputs['totalArcServers'] = $arcArray.Count\n$DeploymentScriptOutputs['status'] = 'Completed'\n"
-  },
-  "dependsOn": [
-    "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
-    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-    "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-  ]
-},
+      "condition": "[parameters('monitorExistingArcServers')]",
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "[format('setup-arc-servers-{0}', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Resources/deploymentScripts'), parameters('tagsByResource')['Microsoft.Resources/deploymentScripts'], json('{}'))]",
+      "kind": "AzurePowerShell",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', variables('managedIdentityId'))]": {}
+        }
+      },
+      "properties": {
+        "azPowerShellVersion": "10.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT60M",
+        "cleanupPreference": "OnSuccess",
+        "arguments": "[format('-ArcServerIdsBase64 \"{0}\" -MonitorAllArcServers ${1} -DCRId \"{2}\"', base64(string(parameters('selectedArcServerIds'))), parameters('monitorAllArcServers'), resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')))]",
+        "scriptContent": "param(\n    [string]$ArcServerIdsBase64,\n    [bool]$MonitorAllArcServers,\n    [string]$DCRId\n)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"Arc Server Monitoring Setup\"\nWrite-Host \"========================================\"\nWrite-Host \"Monitor All Arc Servers: $MonitorAllArcServers\"\nWrite-Host \"DCR ID: $DCRId\"\nWrite-Host \"\"\n\n# Install Az.ConnectedMachine module\nWrite-Host \"Installing Az.ConnectedMachine module...\" -ForegroundColor Cyan\ntry {\n    if (-not (Get-Module -ListAvailable -Name Az.ConnectedMachine)) {\n        Install-Module -Name Az.ConnectedMachine -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop\n        Write-Host \"✓ Az.ConnectedMachine module installed successfully\" -ForegroundColor Green\n    } else {\n        Write-Host \"✓ Az.ConnectedMachine module already installed\" -ForegroundColor Green\n    }\n    Import-Module Az.ConnectedMachine -ErrorAction Stop\n    Write-Host \"✓ Az.ConnectedMachine module imported\" -ForegroundColor Green\n}\ncatch {\n    Write-Host \"ERROR: Failed to install/import Az.ConnectedMachine module: $_\" -ForegroundColor Red\n    Write-Host \"This module is required to manage Arc-enabled servers\" -ForegroundColor Red\n    exit 1\n}\nWrite-Host \"\"\n\n# Wait for role propagation\nWrite-Host \"Waiting 60 seconds for role assignment propagation...\"\nStart-Sleep -Seconds 60\n\n$arcArray = @()\n\nif ($MonitorAllArcServers) {\n    Write-Host \"Discovering all Arc-enabled servers in subscription...\"\n    try {\n        $allArcServers = Get-AzConnectedMachine -ErrorAction Stop\n        Write-Host \"Found $($allArcServers.Count) Arc-enabled servers\"\n        \n        foreach ($arc in $allArcServers) {\n            $arcArray += $arc.Id\n            Write-Host \"  - $($arc.Name)\"\n        }\n    }\n    catch {\n        Write-Host \"ERROR: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\nelse {\n    Write-Host \"Decoding Arc Server IDs from Base64...\"\n    \n    try {\n        $ArcIdsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($ArcServerIdsBase64))\n        Write-Host \"Decoded JSON: $ArcIdsJson\"\n        \n        if ([string]::IsNullOrWhiteSpace($ArcIdsJson) -or $ArcIdsJson -eq '[]') {\n            Write-Host \"ERROR: No Arc servers provided!\" -ForegroundColor Red\n            exit 1\n        }\n        \n        $arcArray = $ArcIdsJson | ConvertFrom-Json\n        Write-Host \"Parsed $($arcArray.Count) Arc server(s)\"\n    }\n    catch {\n        Write-Host \"ERROR: Failed to decode/parse: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\n\nif ($arcArray.Count -eq 0) {\n    Write-Host \"No Arc servers to process\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'NoArcServers'\n    exit 0\n}\n\nWrite-Host \"\"\nWrite-Host \"Processing $($arcArray.Count) Arc server(s)...\"\nWrite-Host \"\"\n\n$results = @()\n$successCount = 0\n$partialCount = 0\n$failCount = 0\n\nforeach ($arcId in $arcArray) {\n    Write-Host \"========================================\"\n    Write-Host \"Processing: $arcId\" -ForegroundColor Cyan\n    Write-Host \"========================================\"\n    \n    $arcName = $arcId.Split('/')[-1]\n    $arcRG = $arcId.Split('/')[4]\n    \n    Write-Host \"Arc Server Name: $arcName\"\n    Write-Host \"Resource Group: $arcRG\"\n    \n    $amaInstalled = $false\n    $dcrAssociated = $false\n    $arcStatus = \"Unknown\"\n    $errorMessage = \"\"\n    \n    try {\n        # Get Arc machine details\n        $arc = Get-AzConnectedMachine -ResourceGroupName $arcRG -Name $arcName -ErrorAction Stop\n        $osType = $arc.OSName\n        $location = $arc.Location\n        $arcStatus = $arc.Status\n        \n        Write-Host \"OS Type: $osType\"\n        Write-Host \"Location: $location\"\n        Write-Host \"Status: $arcStatus\" -ForegroundColor $(if ($arcStatus -eq 'Connected') { 'Green' } else { 'Yellow' })\n        Write-Host \"\"\n        \n        # Determine extension details\n        if ($osType -like \"*Linux*\") {\n            $extensionName = \"AzureMonitorLinuxAgent\"\n            $extensionPublisher = \"Microsoft.Azure.Monitor\"\n            $extensionType = \"AzureMonitorLinuxAgent\"\n        }\n        else {\n            $extensionName = \"AzureMonitorWindowsAgent\"\n            $extensionPublisher = \"Microsoft.Azure.Monitor\"\n            $extensionType = \"AzureMonitorWindowsAgent\"\n        }\n        \n        # Step 1: Check and install AMA\n        Write-Host \"[1/2] Azure Monitor Agent...\" -ForegroundColor Yellow\n        \n        if ($arcStatus -eq 'Connected') {\n            $existingExtension = Get-AzConnectedMachineExtension `\n                -ResourceGroupName $arcRG `\n                -MachineName $arcName `\n                -Name $extensionName `\n                -ErrorAction SilentlyContinue\n            \n            if ($existingExtension) {\n                Write-Host \"  ✓ AMA already installed\" -ForegroundColor Green\n                $amaInstalled = $true\n            }\n            else {\n                Write-Host \"  Installing Azure Monitor Agent...\" -ForegroundColor Cyan\n                \n                try {\n                    $extensionResult = New-AzConnectedMachineExtension `\n                        -ResourceGroupName $arcRG `\n                        -MachineName $arcName `\n                        -Name $extensionName `\n                        -Publisher $extensionPublisher `\n                        -ExtensionType $extensionType `\n                        -Location $location `\n                        -EnableAutomaticUpgrade `\n                        -ErrorAction Stop\n                    \n                    Write-Host \"  ✓ AMA installed successfully\" -ForegroundColor Green\n                    $amaInstalled = $true\n                }\n                catch {\n                    Write-Host \"  ✗ Failed to install AMA: $($_.Exception.Message)\" -ForegroundColor Red\n                    $errorMessage = \"AMA: $($_.Exception.Message)\"\n                    $amaInstalled = $false\n                }\n            }\n        }\n        else {\n            Write-Host \"  ⚠ Arc server is not connected\" -ForegroundColor Yellow\n            $amaInstalled = $false\n        }\n        \n        Write-Host \"\"\n        \n        # Step 2: Associate DCR\n        Write-Host \"[2/2] Data Collection Rule Association...\" -ForegroundColor Yellow\n        \n        $associationName = \"dcr-association-$arcName\"\n        \n        try {\n            $existingAssociation = Get-AzDataCollectionRuleAssociation `\n                -TargetResourceId $arcId `\n                -AssociationName $associationName `\n                -ErrorAction SilentlyContinue\n            \n            if ($existingAssociation) {\n                Write-Host \"  ✓ DCR association already exists\" -ForegroundColor Green\n                $dcrAssociated = $true\n            }\n            else {\n                $association = New-AzDataCollectionRuleAssociation `\n                    -TargetResourceId $arcId `\n                    -AssociationName $associationName `\n                    -DataCollectionRuleId $DCRId `\n                    -ErrorAction Stop\n                \n                Write-Host \"  ✓ DCR associated successfully\" -ForegroundColor Green\n                $dcrAssociated = $true\n            }\n        }\n        catch {\n            Write-Host \"  ✗ Failed to associate DCR: $($_.Exception.Message)\" -ForegroundColor Red\n            if ($errorMessage) {\n                $errorMessage += \"; DCR: $($_.Exception.Message)\"\n            } else {\n                $errorMessage = \"DCR: $($_.Exception.Message)\"\n            }\n            $dcrAssociated = $false\n        }\n        \n        Write-Host \"\"\n        \n        # Determine overall status\n        if ($dcrAssociated) {\n            if ($amaInstalled -or $arcStatus -ne 'Connected') {\n                Write-Host \"✓ Arc server configured successfully!\" -ForegroundColor Green\n                if ($arcStatus -ne 'Connected') {\n                    Write-Host \"  Note: Reconnect Arc server to complete AMA installation\" -ForegroundColor Cyan\n                }\n                $successCount++\n                $status = \"Success\"\n            }\n            else {\n                Write-Host \"⚠ Partially configured (DCR OK, AMA failed)\" -ForegroundColor Yellow\n                $partialCount++\n                $status = \"Partial\"\n            }\n        }\n        else {\n            Write-Host \"✗ Configuration failed\" -ForegroundColor Red\n            $failCount++\n            $status = \"Failed\"\n        }\n        \n        Write-Host \"\"\n        \n        $results += @{\n            ArcServerName = $arcName\n            Status = $status\n            OSType = $osType\n            ArcStatus = $arcStatus\n            AMAInstalled = $amaInstalled\n            DCRAssociated = $dcrAssociated\n            Error = $errorMessage\n        }\n    }\n    catch {\n        Write-Host \"\"\n        Write-Host \"✗ FAILED: $($_.Exception.Message)\" -ForegroundColor Red\n        Write-Host \"\"\n        \n        $failCount++\n        \n        $results += @{\n            ArcServerName = $arcName\n            Status = \"Failed\"\n            Error = $_.Exception.Message\n        }\n    }\n}\n\nWrite-Host \"========================================\"\nWrite-Host \"SUMMARY\"\nWrite-Host \"========================================\"\nWrite-Host \"Total Arc Servers: $($arcArray.Count)\"\nWrite-Host \"✓ Fully Configured: $successCount\" -ForegroundColor Green\nif ($partialCount -gt 0) {\n    Write-Host \"⚠ Partially Configured: $partialCount (DCR OK, AMA pending)\" -ForegroundColor Yellow\n}\nif ($failCount -gt 0) {\n    Write-Host \"✗ Failed: $failCount\" -ForegroundColor Red\n}\nWrite-Host \"========================================\"\nWrite-Host \"\"\n\nif ($successCount -gt 0 -or $partialCount -gt 0) {\n    Write-Host \"DCR associations are active on $(($successCount + $partialCount)) Arc server(s)\" -ForegroundColor Green\n    if ($partialCount -gt 0) {\n        Write-Host \"Reconnect Arc servers to complete AMA installation\" -ForegroundColor Cyan\n    }\n    Write-Host \"Data will start appearing in Log Analytics within 5-10 minutes\" -ForegroundColor Cyan\n}\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['results'] = $results | ConvertTo-Json -Compress\n$DeploymentScriptOutputs['successCount'] = $successCount\n$DeploymentScriptOutputs['partialCount'] = $partialCount\n$DeploymentScriptOutputs['failCount'] = $failCount\n$DeploymentScriptOutputs['totalArcServers'] = $arcArray.Count\n$DeploymentScriptOutputs['status'] = 'Completed'\n"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
+      ]
+    },
     {
       "condition": "[parameters('enableAzureVMPolicy')]",
       "type": "Microsoft.Resources/deployments",
@@ -759,13 +759,13 @@
       "condition": "[parameters('enableCPUAlerts')]",
       "type": "Microsoft.Insights/scheduledQueryRules",
       "apiVersion": "2023-03-15-preview",
-      "name": "[format('alert-{0}-cpu', parameters('deploymentName'))]",
+      "name": "[format('alert-{0}-cpu-critical', parameters('deploymentName'))]",
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
       "properties": {
-        "displayName": "[format('High CPU Usage - {0}', parameters('deploymentName'))]",
-        "description": "[format('Alert when CPU usage exceeds {0}%', parameters('cpuThreshold'))]",
-        "severity": 2,
+        "displayName": "[format('CPU Critical - {0}', parameters('deploymentName'))]",
+        "description": "Alert when CPU usage exceeds 95%",
+        "severity": 1,
         "enabled": true,
         "evaluationFrequency": "PT5M",
         "scopes": ["[variables('workspaceId')]"],
@@ -773,12 +773,15 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('InsightsMetrics | where Namespace == \"Processor\" and Name == \"UtilizationPercentage\" | where Val > {0} | summarize AggregatedValue = avg(Val) by Computer, bin(TimeGenerated, 5m)', parameters('cpuThreshold'))]",
+              "query": "InsightsMetrics | where Namespace == \"Processor\" and Name == \"UtilizationPercentage\" | where Val > 95 | summarize AggregatedValue = avg(Val) by Computer, _ResourceId, bin(TimeGenerated, 5m)",
               "timeAggregation": "Average",
               "metricMeasureColumn": "AggregatedValue",
-              "dimensions": [{"name": "Computer", "operator": "Include", "values": ["*"]}],
+              "dimensions": [
+                {"name": "Computer", "operator": "Include", "values": ["*"]},
+                {"name": "_ResourceId", "operator": "Include", "values": ["*"]}
+              ],
               "operator": "GreaterThan",
-              "threshold": "[parameters('cpuThreshold')]",
+              "threshold": 95,
               "failingPeriods": {"numberOfEvaluationPeriods": 1, "minFailingPeriodsToAlert": 1}
             }
           ]
@@ -810,10 +813,13 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('InsightsMetrics | where Namespace == \"Memory\" and Name == \"AvailableMB\" | extend TotalMemory = todouble(parse_json(Tags)[\"vm.azm.ms/memorySizeMB\"]) | extend UsedPercent = 100.0 - ((Val / TotalMemory) * 100.0) | where UsedPercent > {0} | summarize AggregatedValue = avg(UsedPercent) by Computer, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
+              "query": "[format('InsightsMetrics | where Namespace == \"Memory\" and Name == \"AvailableMB\" | extend TotalMemory = todouble(parse_json(Tags)[\"vm.azm.ms/memorySizeMB\"]) | extend UsedPercent = 100.0 - ((Val / TotalMemory) * 100.0) | where UsedPercent > {0} | summarize AggregatedValue = avg(UsedPercent) by Computer, _ResourceId, bin(TimeGenerated, 5m)', parameters('memoryThreshold'))]",
               "timeAggregation": "Average",
               "metricMeasureColumn": "AggregatedValue",
-              "dimensions": [{"name": "Computer", "operator": "Include", "values": ["*"]}],
+              "dimensions": [
+                {"name": "Computer", "operator": "Include", "values": ["*"]},
+                {"name": "_ResourceId", "operator": "Include", "values": ["*"]}
+              ],
               "operator": "GreaterThan",
               "threshold": "[parameters('memoryThreshold')]",
               "failingPeriods": {"numberOfEvaluationPeriods": 1, "minFailingPeriodsToAlert": 1}
@@ -833,13 +839,13 @@
       "condition": "[parameters('enableDiskAlerts')]",
       "type": "Microsoft.Insights/scheduledQueryRules",
       "apiVersion": "2023-03-15-preview",
-      "name": "[format('alert-{0}-disk', parameters('deploymentName'))]",
+      "name": "[format('alert-{0}-disk-critical', parameters('deploymentName'))]",
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
       "properties": {
-        "displayName": "[format('Low Disk Space - {0}', parameters('deploymentName'))]",
-        "description": "[format('Alert when Disk free space is below {0}%', sub(100, parameters('diskThreshold')))]",
-        "severity": 2,
+        "displayName": "[format('Disk Critical - {0}', parameters('deploymentName'))]",
+        "description": "Alert when disk free space is below 5%",
+        "severity": 1,
         "enabled": true,
         "evaluationFrequency": "PT15M",
         "scopes": ["[variables('workspaceId')]"],
@@ -847,12 +853,54 @@
         "criteria": {
           "allOf": [
             {
-              "query": "[format('InsightsMetrics | where Namespace == \"LogicalDisk\" and Name == \"FreeSpacePercentage\" | where Val < {0} | summarize AggregatedValue = avg(Val) by Computer, bin(TimeGenerated, 15m)', sub(100, parameters('diskThreshold')))]",
-              "timeAggregation": "Average",
-              "metricMeasureColumn": "AggregatedValue",
-              "dimensions": [{"name": "Computer", "operator": "Include", "values": ["*"]}],
-              "operator": "LessThan",
-              "threshold": "[sub(100, parameters('diskThreshold'))]",
+              "query": "InsightsMetrics | where Origin == \"vm.azm.ms\" | where Namespace == \"LogicalDisk\" and Name == \"FreeSpacePercentage\" | extend Disk = tostring(todynamic(Tags)[\"vm.azm.ms/mountId\"]) | extend FreeSpace = Val | summarize FreeSpace = min(FreeSpace) by Computer, Disk, _ResourceId | where FreeSpace < 5",
+              "timeAggregation": "Count",
+              "dimensions": [
+                {"name": "Computer", "operator": "Include", "values": ["*"]},
+                {"name": "Disk", "operator": "Include", "values": ["*"]},
+                {"name": "_ResourceId", "operator": "Include", "values": ["*"]}
+              ],
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "failingPeriods": {"numberOfEvaluationPeriods": 1, "minFailingPeriodsToAlert": 1}
+            }
+          ]
+        },
+        "actions": {
+          "actionGroups": "[if(parameters('createActionGroup'), createArray(resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))), createArray())]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]",
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-03-15-preview",
+      "name": "[format('alert-{0}-disk-not-available', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
+      "properties": {
+        "displayName": "[format('Disk Critical - Not Available - {0}', parameters('deploymentName'))]",
+        "description": "Alert when disk metrics stop reporting but machine is sending heartbeat",
+        "severity": 2,
+        "enabled": true,
+        "evaluationFrequency": "PT30M",
+        "scopes": ["[variables('workspaceId')]"],
+        "windowSize": "PT6H",
+        "criteria": {
+          "allOf": [
+            {
+              "query": "let tmp = Heartbeat | where TimeGenerated > ago(6h) | summarize arg_max(TimeGenerated,*) by Computer | extend maxhhearbeat=TimeGenerated | extend cname= tolower(replace_string(Computer,\".softjam.it\",\"\")) | project maxhhearbeat,cname; InsightsMetrics | where Origin == \"vm.azm.ms\" | where Namespace == \"LogicalDisk\" and Name == \"FreeSpacePercentage\" | extend Disk = tostring(todynamic(Tags)[\"vm.azm.ms/mountId\"]) | extend FreeSpace = Val | where TimeGenerated > ago(6h) | extend Computer=tolower(Computer) | summarize arg_max(TimeGenerated, *) by _ResourceId, Computer, Disk | join kind=leftouter tmp on $left.Computer==$right.cname | where TimeGenerated < ago(30min) | where maxhhearbeat > ago(20m)",
+              "timeAggregation": "Count",
+              "dimensions": [
+                {"name": "Computer", "operator": "Include", "values": ["*"]},
+                {"name": "Disk", "operator": "Include", "values": ["*"]},
+                {"name": "_ResourceId", "operator": "Include", "values": ["*"]}
+              ],
+              "operator": "GreaterThan",
+              "threshold": 0,
               "failingPeriods": {"numberOfEvaluationPeriods": 1, "minFailingPeriodsToAlert": 1}
             }
           ]
@@ -874,8 +922,46 @@
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
       "properties": {
-        "displayName": "[format('Machine Heartbeat Missing - {0}', parameters('deploymentName'))]",
-        "description": "Alert when machine stops sending heartbeat",
+        "displayName": "[format('Heartbeat Missing - {0}', parameters('deploymentName'))]",
+        "description": "Alert when machine stops sending heartbeat for 10+ minutes",
+        "severity": 1,
+        "enabled": true,
+        "evaluationFrequency": "PT10M",
+        "scopes": ["[subscription().id]"],
+        "targetResourceTypes": ["Microsoft.Compute/virtualMachines", "Microsoft.HybridCompute/machines"],
+        "windowSize": "PT1D",
+        "criteria": {
+          "allOf": [
+            {
+              "query": "InsightsMetrics | where TimeGenerated > ago(1d) | where Name == \"Heartbeat\" | where Computer != \"sgescheduler01\" | summarize TimeGenerated = max(TimeGenerated) by Computer, _ResourceId | where TimeGenerated < ago(10m)",
+              "timeAggregation": "Count",
+              "dimensions": [
+                {"name": "Computer", "operator": "Include", "values": ["*"]},
+                {"name": "_ResourceId", "operator": "Include", "values": ["*"]}
+              ],
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "failingPeriods": {"numberOfEvaluationPeriods": 1, "minFailingPeriodsToAlert": 1}
+            }
+          ]
+        },
+        "actions": {
+          "actionGroups": "[if(parameters('createActionGroup'), createArray(resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))), createArray())]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-03-15-preview",
+      "name": "[format('alert-{0}-service-adconnect', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
+      "properties": {
+        "displayName": "[format('Service Critical - AD Connect - {0}', parameters('deploymentName'))]",
+        "description": "Alert when Azure AD Connect services are stopped",
         "severity": 1,
         "enabled": true,
         "evaluationFrequency": "PT5M",
@@ -884,9 +970,52 @@
         "criteria": {
           "allOf": [
             {
-              "query": "Heartbeat | summarize LastHeartbeat = max(TimeGenerated) by Computer | where LastHeartbeat < ago(10m)",
+              "query": "ConfigurationData | where SvcDisplayName in~ (\"Microsoft Azure AD Sync\", 'Check point identity collector','azure ad connect health sync insights service', 'azure ad connect health sync monitoring service') and SvcState contains \"Stopped\" | order by TimeGenerated desc",
               "timeAggregation": "Count",
-              "dimensions": [],
+              "dimensions": [
+                {"name": "Computer", "operator": "Include", "values": ["*"]},
+                {"name": "SvcDisplayName", "operator": "Include", "values": ["*"]},
+                {"name": "_ResourceId", "operator": "Include", "values": ["*"]}
+              ],
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "failingPeriods": {"numberOfEvaluationPeriods": 1, "minFailingPeriodsToAlert": 1}
+            }
+          ]
+        },
+        "actions": {
+          "actionGroups": "[if(parameters('createActionGroup'), createArray(resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))), createArray())]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', parameters('actionGroupName'))]",
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-03-15-preview",
+      "name": "[format('alert-{0}-service-dc', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
+      "properties": {
+        "displayName": "[format('Service Critical - Domain Controller - {0}', parameters('deploymentName'))]",
+        "description": "Alert when critical Domain Controller services are stopped",
+        "severity": 0,
+        "enabled": true,
+        "evaluationFrequency": "PT5M",
+        "scopes": ["[variables('workspaceId')]"],
+        "windowSize": "PT15M",
+        "criteria": {
+          "allOf": [
+            {
+              "query": "ConfigurationData | where SvcDisplayName in~ ('active directory web services', 'dfs replication', 'dns server', 'kerberos key distribution center', 'workstation', 'netlogon', 'active directory domain services', 'remote procedure call (rpc)', 'windows time', 'intersite messaging') and Computer in~ ('SAZDC22', 'SAZDC23', 'SGEDC03', 'SGEDC01') and SvcState contains \"Stopped\" | order by TimeGenerated desc",
+              "timeAggregation": "Count",
+              "dimensions": [
+                {"name": "Computer", "operator": "Include", "values": ["*"]},
+                {"name": "SvcDisplayName", "operator": "Include", "values": ["*"]},
+                {"name": "_ResourceId", "operator": "Include", "values": ["*"]}
+              ],
               "operator": "GreaterThan",
               "threshold": 0,
               "failingPeriods": {"numberOfEvaluationPeriods": 1, "minFailingPeriodsToAlert": 1}

@@ -353,7 +353,7 @@
                 "max": 100,
                 "label": "CPU Threshold",
                 "subLabel": "%",
-                "defaultValue": 85,
+                "defaultValue": 95,
                 "toolTip": "Alert when CPU usage exceeds this percentage",
                 "constraints": {
                   "required": true
@@ -379,7 +379,7 @@
                 "max": 100,
                 "label": "Disk Threshold",
                 "subLabel": "%",
-                "defaultValue": 85,
+                "defaultValue": 95,
                 "toolTip": "Alert when Disk usage exceeds this percentage",
                 "constraints": {
                   "required": true
