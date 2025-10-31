@@ -411,8 +411,7 @@
               "facilityNames": ["auth", "authpriv", "cron", "daemon", "kern", "syslog"],
               "logLevels": ["Error", "Critical", "Alert", "Emergency"]
             }
-          ],
-          "extensions": "[if(parameters('enableChangeTracking'), createArray(createObject('name', 'CTDataSource-Windows', 'streams', createArray('Microsoft-ConfigurationChange', 'Microsoft-ConfigurationChangeV2', 'Microsoft-ConfigurationData'), 'extensionName', 'ChangeTracking-Windows'), createObject('name', 'CTDataSource-Linux', 'streams', createArray('Microsoft-ConfigurationChange', 'Microsoft-ConfigurationChangeV2', 'Microsoft-ConfigurationData'), 'extensionName', 'ChangeTracking-Linux')), createArray())]"
+          ]
         },
         "destinations": {
           "logAnalytics": [
@@ -422,8 +421,17 @@
             }
           ]
         },
-        "dataFlows": "[concat(createArray(createObject('streams', createArray('Microsoft-InsightsMetrics'), 'destinations', createArray('VMInsightsPerf-Logs-Dest')), createObject('streams', createArray('Microsoft-Syslog'), 'destinations', createArray('VMInsightsPerf-Logs-Dest'))), if(parameters('enableChangeTracking'), createArray(createObject('streams', createArray('Microsoft-ConfigurationChange', 'Microsoft-ConfigurationChangeV2', 'Microsoft-ConfigurationData'), 'destinations', createArray('VMInsightsPerf-Logs-Dest'))), createArray()))]",
-        "description": "Unified Data Collection Rule for Azure VMs, Arc servers, Windows and Linux monitoring with VM Insights and Change Tracking"
+        "dataFlows": [
+          {
+            "streams": ["Microsoft-InsightsMetrics"],
+            "destinations": ["VMInsightsPerf-Logs-Dest"]
+          },
+          {
+            "streams": ["Microsoft-Syslog"],
+            "destinations": ["VMInsightsPerf-Logs-Dest"]
+          }
+        ],
+        "description": "Unified Data Collection Rule for Azure VMs and Arc servers (Windows and Linux) with VM Insights"
       },
       "dependsOn": [
         "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
@@ -1238,11 +1246,11 @@
         "evaluationFrequency": "PT10M",
         "scopes": ["[subscription().id]"],
         "targetResourceTypes": ["Microsoft.Compute/virtualMachines", "Microsoft.HybridCompute/machines"],
-        "windowSize": "PT1D",
+        "windowSize": "PT30M",
         "criteria": {
           "allOf": [
             {
-              "query": "InsightsMetrics | where TimeGenerated > ago(1d) | where Name == \"Heartbeat\" | where Computer != \"sgescheduler01\" | summarize TimeGenerated = max(TimeGenerated) by Computer, _ResourceId | where TimeGenerated < ago(10m)",
+              "query": "InsightsMetrics | where TimeGenerated > ago(30m) | where Name == \"Heartbeat\" | where Computer != \"sgescheduler01\" | summarize TimeGenerated = max(TimeGenerated) by Computer, _ResourceId | where TimeGenerated < ago(10m)",
               "timeAggregation": "Count",
               "dimensions": [
                 {"name": "Computer", "operator": "Include", "values": ["*"]},
@@ -1263,6 +1271,7 @@
       ]
     },
     {
+      "condition": "[parameters('enableChangeTracking')]",
       "type": "Microsoft.Insights/scheduledQueryRules",
       "apiVersion": "2023-03-15-preview",
       "name": "[format('alert-{0}-service-adconnect', parameters('deploymentName'))]",
@@ -1302,6 +1311,7 @@
       ]
     },
     {
+      "condition": "[parameters('enableChangeTracking')]",
       "type": "Microsoft.Insights/scheduledQueryRules",
       "apiVersion": "2023-03-15-preview",
       "name": "[format('alert-{0}-service-dc', parameters('deploymentName'))]",
