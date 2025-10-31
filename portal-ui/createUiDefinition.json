@@ -416,6 +416,15 @@
                 "label": "Enable Heartbeat alerts",
                 "toolTip": "Alert when machine stops sending heartbeat (offline)",
                 "defaultValue": true
+              },
+              {
+                "name": "serviceAlertsInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": true,
+                "options": {
+                  "icon": "Info",
+                  "text": "📌 Additional Service Monitoring Alerts:\n\n• AD Connect Services (Critical)\n• Domain Controller Services (Critical)\n• Disk Metrics Not Available (Warning)\n\nThese alerts are automatically created. Service monitoring alerts require Change Tracking to be enabled (configured in Automation step)."
+                }
               }
             ]
           }
