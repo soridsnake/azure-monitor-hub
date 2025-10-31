@@ -449,191 +449,191 @@
         ]
       },
       {
-  "name": "automation",
-  "label": "Automation",
-  "elements": [
-    {
-      "name": "changeTrackingSection",
-      "type": "Microsoft.Common.Section",
-      "label": "Change Tracking & Inventory",
-      "elements": [
-        {
-          "name": "enableChangeTracking",
-          "type": "Microsoft.Common.CheckBox",
-          "label": "Enable Change Tracking & Inventory",
-          "defaultValue": false,
-          "toolTip": "Enable Change Tracking and Inventory to track changes to files, registry, software, and services on VMs and Arc servers"
-        },
-        {
-          "name": "changeTrackingInfo",
-          "type": "Microsoft.Common.InfoBox",
-          "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]",
-          "options": {
-            "icon": "Info",
-            "text": "Change Tracking & Inventory will collect data about:\n• Software inventory (installed applications)\n• File changes\n• Windows Registry changes (Windows only)\n• Windows Services\n• Linux Daemons\n\nThis data is essential for the Service monitoring alerts (AD Connect, Domain Controllers).",
-            "uri": "https://learn.microsoft.com/en-us/azure/automation/change-tracking/overview-monitoring-agent"
-          }
-        },
-        {
-          "name": "enableChangeTrackingAzureVM",
-          "type": "Microsoft.Common.CheckBox",
-          "label": "Enable Change Tracking for Azure VMs",
-          "defaultValue": true,
-          "toolTip": "Install Change Tracking extension on Azure VMs",
-          "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
-        },
-        {
-          "name": "enableChangeTrackingArc",
-          "type": "Microsoft.Common.CheckBox",
-          "label": "Enable Change Tracking for Arc Servers",
-          "defaultValue": true,
-          "toolTip": "Install Change Tracking extension on Arc-enabled servers",
-          "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
-        }
-      ]
-    },
-    {
-      "name": "azureVMPolicySection",
-      "type": "Microsoft.Common.Section",
-      "label": "Azure Policy - Automatic Azure VM Enrollment",
-      "elements": [
-        {
-          "name": "enableAzureVMPolicy",
-          "type": "Microsoft.Common.CheckBox",
-          "label": "Enable Azure Policy for automatic monitoring of new Azure VMs",
-          "defaultValue": false,
-          "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new Azure VMs and associate them with Data Collection Rules"
-        },
-        {
-          "name": "policyAssignmentName",
-          "type": "Microsoft.Common.TextBox",
-          "label": "Policy Assignment Name",
-          "defaultValue": "[concat('ama-vm-monitoring-', basics('deploymentName'))]",
-          "toolTip": "Name for the Azure VM Policy assignment",
-          "constraints": {
-            "required": true,
-            "regex": "^[a-zA-Z0-9-]{3,64}$",
-            "validationMessage": "Alphanumeric and hyphens. Length 3-64."
+        "name": "automation",
+        "label": "Automation",
+        "elements": [
+          {
+            "name": "changeTrackingSection",
+            "type": "Microsoft.Common.Section",
+            "label": "Change Tracking & Inventory",
+            "elements": [
+              {
+                "name": "enableChangeTracking",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Change Tracking & Inventory",
+                "defaultValue": false,
+                "toolTip": "Enable Change Tracking and Inventory to track changes to files, registry, software, and services on VMs and Arc servers"
+              },
+              {
+                "name": "changeTrackingInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]",
+                "options": {
+                  "icon": "Info",
+                  "text": "Change Tracking & Inventory will collect data about:\n• Software inventory (installed applications)\n• File changes\n• Windows Registry changes (Windows only)\n• Windows Services\n• Linux Daemons\n\nThis data is essential for the Service monitoring alerts (AD Connect, Domain Controllers).",
+                  "uri": "https://learn.microsoft.com/en-us/azure/automation/change-tracking/overview-monitoring-agent"
+                }
+              },
+              {
+                "name": "enableChangeTrackingAzureVM",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Change Tracking for Azure VMs",
+                "defaultValue": true,
+                "toolTip": "Install Change Tracking extension on Azure VMs",
+                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
+              },
+              {
+                "name": "enableChangeTrackingArc",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Change Tracking for Arc Servers",
+                "defaultValue": true,
+                "toolTip": "Install Change Tracking extension on Arc-enabled servers",
+                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
+              }
+            ]
           },
-          "visible": "[steps('automation').azureVMPolicySection.enableAzureVMPolicy]"
-        },
-        {
-          "name": "policyEnabledInfo",
-          "type": "Microsoft.Common.InfoBox",
-          "visible": "[steps('automation').azureVMPolicySection.enableAzureVMPolicy]",
-          "options": {
-            "icon": "Info",
-            "text": "Azure Policy will be deployed at subscription level to automatically:\n• Install Azure Monitor Agent (AMA) on new Windows and Linux Azure VMs\n• Assign the user-assigned managed identity to VMs\n• Associate VMs with the unified Data Collection Rule\n\nPolicy evaluation occurs within 15 minutes of VM creation. Existing non-compliant VMs will be automatically remediated.",
-            "uri": "https://learn.microsoft.com/azure/governance/policy/overview"
-          }
-        },
-        {
-          "name": "policyDisabledInfo",
-          "type": "Microsoft.Common.InfoBox",
-          "visible": "[not(steps('automation').azureVMPolicySection.enableAzureVMPolicy)]",
-          "options": {
-            "icon": "Warning",
-            "text": "Azure Policy is disabled. New Azure VMs will NOT be automatically enrolled in monitoring. You will need to manually install Azure Monitor Agent and associate the Data Collection Rule for each new VM."
-          }
-        }
-      ]
-    },
-    {
-      "name": "arcPolicySection",
-      "type": "Microsoft.Common.Section",
-      "label": "Azure Policy - Automatic Arc Server Enrollment",
-      "elements": [
-        {
-          "name": "enableArcPolicy",
-          "type": "Microsoft.Common.CheckBox",
-          "label": "Enable Azure Policy for automatic monitoring of new Arc-enabled servers",
-          "defaultValue": false,
-          "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new Arc-enabled servers and associate them with Data Collection Rules"
-        },
-        {
-          "name": "policyAssignmentName",
-          "type": "Microsoft.Common.TextBox",
-          "label": "Policy Assignment Name",
-          "defaultValue": "[concat('ama-arc-monitoring-', basics('deploymentName'))]",
-          "toolTip": "Name for the Arc Policy assignment",
-          "constraints": {
-            "required": true,
-            "regex": "^[a-zA-Z0-9-]{3,64}$",
-            "validationMessage": "Alphanumeric and hyphens. Length 3-64."
+          {
+            "name": "azureVMPolicySection",
+            "type": "Microsoft.Common.Section",
+            "label": "Azure Policy - Automatic Azure VM Enrollment",
+            "elements": [
+              {
+                "name": "enableAzureVMPolicy",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Azure Policy for automatic monitoring of new Azure VMs",
+                "defaultValue": false,
+                "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new Azure VMs and associate them with Data Collection Rules"
+              },
+              {
+                "name": "policyAssignmentName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Policy Assignment Name",
+                "defaultValue": "[concat('ama-vm-monitoring-', basics('deploymentName'))]",
+                "toolTip": "Name for the Azure VM Policy assignment",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{3,64}$",
+                  "validationMessage": "Alphanumeric and hyphens. Length 3-64."
+                },
+                "visible": "[steps('automation').azureVMPolicySection.enableAzureVMPolicy]"
+              },
+              {
+                "name": "policyEnabledInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[steps('automation').azureVMPolicySection.enableAzureVMPolicy]",
+                "options": {
+                  "icon": "Info",
+                  "text": "Azure Policy will be deployed at subscription level to automatically:\n• Install Azure Monitor Agent (AMA) on new Windows and Linux Azure VMs\n• Assign the user-assigned managed identity to VMs\n• Associate VMs with the unified Data Collection Rule\n\nPolicy evaluation occurs within 15 minutes of VM creation. Existing non-compliant VMs will be automatically remediated.",
+                  "uri": "https://learn.microsoft.com/azure/governance/policy/overview"
+                }
+              },
+              {
+                "name": "policyDisabledInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[not(steps('automation').azureVMPolicySection.enableAzureVMPolicy)]",
+                "options": {
+                  "icon": "Warning",
+                  "text": "Azure Policy is disabled. New Azure VMs will NOT be automatically enrolled in monitoring. You will need to manually install Azure Monitor Agent and associate the Data Collection Rule for each new VM."
+                }
+              }
+            ]
           },
-          "visible": "[steps('automation').arcPolicySection.enableArcPolicy]"
-        },
-        {
-          "name": "enableProcessesAndDependencies",
-          "type": "Microsoft.Common.CheckBox",
-          "label": "Enable Processes and Dependencies (VM Insights)",
-          "defaultValue": true,
-          "toolTip": "Enable collection of process details and network dependencies for Service Map",
-          "visible": "[steps('automation').arcPolicySection.enableArcPolicy]"
-        },
-        {
-          "name": "arcPolicyEnabledInfo",
-          "type": "Microsoft.Common.InfoBox",
-          "visible": "[steps('automation').arcPolicySection.enableArcPolicy]",
-          "options": {
-            "icon": "Info",
-            "text": "Azure Policy will be deployed at subscription level to automatically:\n• Install Azure Monitor Agent (AMA) on new Arc-enabled Windows and Linux servers\n• Assign the user-assigned managed identity to Arc machines\n• Associate Arc servers with the unified Data Collection Rule\n• Optionally enable VM Insights with processes and dependencies\n\nPolicy evaluation occurs within 15 minutes of Arc machine connection. Existing non-compliant Arc servers will be automatically remediated.",
-            "uri": "https://learn.microsoft.com/azure/azure-arc/servers/overview"
+          {
+            "name": "arcPolicySection",
+            "type": "Microsoft.Common.Section",
+            "label": "Azure Policy - Automatic Arc Server Enrollment",
+            "elements": [
+              {
+                "name": "enableArcPolicy",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Azure Policy for automatic monitoring of new Arc-enabled servers",
+                "defaultValue": false,
+                "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new Arc-enabled servers and associate them with Data Collection Rules"
+              },
+              {
+                "name": "policyAssignmentName",
+                "type": "Microsoft.Common.TextBox",
+                "label": "Policy Assignment Name",
+                "defaultValue": "[concat('ama-arc-monitoring-', basics('deploymentName'))]",
+                "toolTip": "Name for the Arc Policy assignment",
+                "constraints": {
+                  "required": true,
+                  "regex": "^[a-zA-Z0-9-]{3,64}$",
+                  "validationMessage": "Alphanumeric and hyphens. Length 3-64."
+                },
+                "visible": "[steps('automation').arcPolicySection.enableArcPolicy]"
+              },
+              {
+                "name": "enableProcessesAndDependencies",
+                "type": "Microsoft.Common.CheckBox",
+                "label": "Enable Processes and Dependencies (VM Insights)",
+                "defaultValue": true,
+                "toolTip": "Enable collection of process details and network dependencies for Service Map",
+                "visible": "[steps('automation').arcPolicySection.enableArcPolicy]"
+              },
+              {
+                "name": "arcPolicyEnabledInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[steps('automation').arcPolicySection.enableArcPolicy]",
+                "options": {
+                  "icon": "Info",
+                  "text": "Azure Policy will be deployed at subscription level to automatically:\n• Install Azure Monitor Agent (AMA) on new Arc-enabled Windows and Linux servers\n• Assign the user-assigned managed identity to Arc machines\n• Associate Arc servers with the unified Data Collection Rule\n• Optionally enable VM Insights with processes and dependencies\n\nPolicy evaluation occurs within 15 minutes of Arc machine connection. Existing non-compliant Arc servers will be automatically remediated.",
+                  "uri": "https://learn.microsoft.com/azure/azure-arc/servers/overview"
+                }
+              },
+              {
+                "name": "arcPolicyDisabledInfo",
+                "type": "Microsoft.Common.InfoBox",
+                "visible": "[not(steps('automation').arcPolicySection.enableArcPolicy)]",
+                "options": {
+                  "icon": "Warning",
+                  "text": "Azure Policy is disabled. New Arc-enabled servers will NOT be automatically enrolled in monitoring. You will need to manually install Azure Monitor Agent and associate the Data Collection Rule for each new Arc server."
+                }
+              }
+            ]
           }
-        },
-        {
-          "name": "arcPolicyDisabledInfo",
-          "type": "Microsoft.Common.InfoBox",
-          "visible": "[not(steps('automation').arcPolicySection.enableArcPolicy)]",
-          "options": {
-            "icon": "Warning",
-            "text": "Azure Policy is disabled. New Arc-enabled servers will NOT be automatically enrolled in monitoring. You will need to manually install Azure Monitor Agent and associate the Data Collection Rule for each new Arc server."
-          }
-        }
-      ]
-    }
-  ]
-}
+        ]
+      }
     ],
     "outputs": {
-  "location": "[location()]",
-  "deploymentName": "[basics('deploymentName')]",
-  "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'existing')]",
-  "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'existing'), steps('infrastructure').logAnalyticsSection.existing.id, '')]",
-  "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new'), steps('infrastructure').logAnalyticsSection.name, if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'existing'), steps('infrastructure').logAnalyticsSection.existing.name, concat('law-', basics('deploymentName'))))]",
-  "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new'), steps('infrastructure').logAnalyticsSection.retentionInDays, 90)]",
-  "useExistingManagedIdentity": "[equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing')]",
-  "existingManagedIdentityId": "[if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing'), steps('infrastructure').managedIdentitySection.existing.id, '')]",
-  "managedIdentityName": "[if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'new'), steps('infrastructure').managedIdentitySection.name, if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing'), steps('infrastructure').managedIdentitySection.existing.name, concat('id-', basics('deploymentName'))))]",
-  "monitorExistingVMs": "[or(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all'))]",
-  "monitorAllVMs": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
-  "selectedVMIds": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), split(replace(steps('infrastructure').vmMonitoringSection.selectedVMResourceIds, ' ', ''), ','), parse('[]'))]",
-  "monitorExistingArcServers": "[or(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'selected'), equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'all'))]",
-  "monitorAllArcServers": "[equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'all')]",
-  "selectedArcServerIds": "[if(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'selected'), split(replace(steps('infrastructure').arcMonitoringSection.selectedArcResourceIds, ' ', ''), ','), parse('[]'))]",
-  "dcrNameWindows": "[if(or(not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none')), not(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'none'))), steps('infrastructure').dcrSection.dcrName, concat('dcr-', basics('deploymentName'), '-unified'))]",
-  "dcrNameLinux": "[if(or(not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none')), not(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'none'))), steps('infrastructure').dcrSection.dcrName, concat('dcr-', basics('deploymentName'), '-unified'))]",
-  "enableAzureVMPolicy": "[steps('automation').azureVMPolicySection.enableAzureVMPolicy]",
-  "azureVMPolicyAssignmentName": "[if(steps('automation').azureVMPolicySection.enableAzureVMPolicy, steps('automation').azureVMPolicySection.policyAssignmentName, concat('ama-vm-monitoring-', basics('deploymentName')))]",
-  "enableArcPolicy": "[steps('automation').arcPolicySection.enableArcPolicy]",
-  "arcPolicyAssignmentName": "[if(steps('automation').arcPolicySection.enableArcPolicy, steps('automation').arcPolicySection.policyAssignmentName, concat('ama-arc-monitoring-', basics('deploymentName')))]",
-  "enableProcessesAndDependencies": "[if(steps('automation').arcPolicySection.enableArcPolicy, steps('automation').arcPolicySection.enableProcessesAndDependencies, true)]",
-  "enableChangeTracking": "[steps('automation').changeTrackingSection.enableChangeTracking]",
-  "enableChangeTrackingAzureVM": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.enableChangeTrackingAzureVM, false)]",
-  "enableChangeTrackingArc": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.enableChangeTrackingArc, false)]",
-  "changeTrackingVMPolicyAssignmentName": "[concat('ct-vm-', basics('deploymentName'))]",
-  "changeTrackingArcPolicyAssignmentName": "[concat('ct-arc-', basics('deploymentName'))]",
-  "enableCPUAlerts": "[steps('monitoring').enabledAlertsSection.enableCPUAlerts]",
-  "cpuThreshold": "[steps('monitoring').alertThresholdsSection.cpuThreshold]",
-  "enableMemoryAlerts": "[steps('monitoring').enabledAlertsSection.enableMemoryAlerts]",
-  "memoryThreshold": "[steps('monitoring').alertThresholdsSection.memoryThreshold]",
-  "enableDiskAlerts": "[steps('monitoring').enabledAlertsSection.enableDiskAlerts]",
-  "diskThreshold": "[steps('monitoring').alertThresholdsSection.diskThreshold]",
-  "enableHeartbeatAlerts": "[steps('monitoring').enabledAlertsSection.enableHeartbeatAlerts]",
-  "createActionGroup": true,
-  "actionGroupName": "[steps('notifications').actionGroupName]",
-  "emailRecipients": "[steps('notifications').emailRecipients]",
-  "tagsByResource": {}
-}
+      "location": "[location()]",
+      "deploymentName": "[basics('deploymentName')]",
+      "useExistingLogAnalytics": "[equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'existing')]",
+      "existingLogAnalyticsWorkspaceId": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'existing'), steps('infrastructure').logAnalyticsSection.existing.id, '')]",
+      "logAnalyticsWorkspaceName": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new'), steps('infrastructure').logAnalyticsSection.name, if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'existing'), steps('infrastructure').logAnalyticsSection.existing.name, concat('law-', basics('deploymentName'))))]",
+      "retentionInDays": "[if(equals(steps('infrastructure').logAnalyticsSection.newOrExisting, 'new'), steps('infrastructure').logAnalyticsSection.retentionInDays, 90)]",
+      "useExistingManagedIdentity": "[equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing')]",
+      "existingManagedIdentityId": "[if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing'), steps('infrastructure').managedIdentitySection.existing.id, '')]",
+      "managedIdentityName": "[if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'new'), steps('infrastructure').managedIdentitySection.name, if(equals(steps('infrastructure').managedIdentitySection.newOrExisting, 'existing'), steps('infrastructure').managedIdentitySection.existing.name, concat('id-', basics('deploymentName'))))]",
+      "monitorExistingVMs": "[or(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all'))]",
+      "monitorAllVMs": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
+      "selectedVMIds": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), split(replace(steps('infrastructure').vmMonitoringSection.selectedVMResourceIds, ' ', ''), ','), parse('[]'))]",
+      "monitorExistingArcServers": "[or(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'selected'), equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'all'))]",
+      "monitorAllArcServers": "[equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'all')]",
+      "selectedArcServerIds": "[if(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'selected'), split(replace(steps('infrastructure').arcMonitoringSection.selectedArcResourceIds, ' ', ''), ','), parse('[]'))]",
+      "dcrNameWindows": "[if(or(not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none')), not(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'none'))), steps('infrastructure').dcrSection.dcrName, concat('dcr-', basics('deploymentName'), '-unified'))]",
+      "dcrNameLinux": "[if(or(not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none')), not(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'none'))), steps('infrastructure').dcrSection.dcrName, concat('dcr-', basics('deploymentName'), '-unified'))]",
+      "enableAzureVMPolicy": "[steps('automation').azureVMPolicySection.enableAzureVMPolicy]",
+      "azureVMPolicyAssignmentName": "[if(steps('automation').azureVMPolicySection.enableAzureVMPolicy, steps('automation').azureVMPolicySection.policyAssignmentName, concat('ama-vm-monitoring-', basics('deploymentName')))]",
+      "enableArcPolicy": "[steps('automation').arcPolicySection.enableArcPolicy]",
+      "arcPolicyAssignmentName": "[if(steps('automation').arcPolicySection.enableArcPolicy, steps('automation').arcPolicySection.policyAssignmentName, concat('ama-arc-monitoring-', basics('deploymentName')))]",
+      "enableProcessesAndDependencies": "[if(steps('automation').arcPolicySection.enableArcPolicy, steps('automation').arcPolicySection.enableProcessesAndDependencies, true)]",
+      "enableChangeTracking": "[steps('automation').changeTrackingSection.enableChangeTracking]",
+      "enableChangeTrackingAzureVM": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.enableChangeTrackingAzureVM, false)]",
+      "enableChangeTrackingArc": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.enableChangeTrackingArc, false)]",
+      "changeTrackingVMPolicyAssignmentName": "[concat('ct-vm-', basics('deploymentName'))]",
+      "changeTrackingArcPolicyAssignmentName": "[concat('ct-arc-', basics('deploymentName'))]",
+      "enableCPUAlerts": "[steps('monitoring').enabledAlertsSection.enableCPUAlerts]",
+      "cpuThreshold": "[steps('monitoring').alertThresholdsSection.cpuThreshold]",
+      "enableMemoryAlerts": "[steps('monitoring').enabledAlertsSection.enableMemoryAlerts]",
+      "memoryThreshold": "[steps('monitoring').alertThresholdsSection.memoryThreshold]",
+      "enableDiskAlerts": "[steps('monitoring').enabledAlertsSection.enableDiskAlerts]",
+      "diskThreshold": "[steps('monitoring').alertThresholdsSection.diskThreshold]",
+      "enableHeartbeatAlerts": "[steps('monitoring').enabledAlertsSection.enableHeartbeatAlerts]",
+      "createActionGroup": true,
+      "actionGroupName": "[steps('notifications').actionGroupName]",
+      "emailRecipients": "[steps('notifications').emailRecipients]",
+      "tagsByResource": {}
+    }
   }
 }
