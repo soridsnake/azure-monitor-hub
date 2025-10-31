@@ -115,7 +115,7 @@
                 "type": "Microsoft.Common.OptionsGroup",
                 "label": "Managed Identity",
                 "defaultValue": "new",
-                "toolTip": "Create a new managed identity or use an existing one for deployment scripts",
+                "toolTip": "Create a new managed identity or use an existing one for deployment scripts and Azure Policy",
                 "constraints": {
                   "allowedValues": [
                     {
@@ -161,7 +161,7 @@
                 "visible": true,
                 "options": {
                   "icon": "Info",
-                  "text": "A User-Assigned Managed Identity is used to run deployment scripts that associate VMs with Data Collection Rules. It will automatically receive Contributor permissions at the subscription level."
+                  "text": "A User-Assigned Managed Identity is used to run deployment scripts and by Azure Policy to configure VMs. It will automatically receive Contributor and other necessary permissions at the subscription level."
                 }
               }
             ]
@@ -222,28 +222,15 @@
                 "visible": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
                 "options": {
                   "icon": "Warning",
-                  "text": "ALL Virtual Machines in the subscription will be discovered and monitored automatically. The deployment script will query all VMs and associate them with Data Collection Rules. This may take several minutes."
+                  "text": "ALL Virtual Machines in the subscription will be discovered and monitored automatically. The deployment script will query all VMs and associate them with the unified Data Collection Rule. This may take several minutes."
                 }
               },
               {
-                "name": "dcrNameWindows",
+                "name": "dcrName",
                 "type": "Microsoft.Common.TextBox",
-                "label": "Data Collection Rule Name (Windows)",
-                "defaultValue": "[concat('dcr-', basics('deploymentName'), '-windows')]",
-                "toolTip": "Name for the Windows Data Collection Rule",
-                "constraints": {
-                  "required": true,
-                  "regex": "^[a-zA-Z0-9-]{3,64}$",
-                  "validationMessage": "Alphanumeric and hyphens. Length 3-64."
-                },
-                "visible": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]"
-              },
-              {
-                "name": "dcrNameLinux",
-                "type": "Microsoft.Common.TextBox",
-                "label": "Data Collection Rule Name (Linux)",
-                "defaultValue": "[concat('dcr-', basics('deploymentName'), '-linux')]",
-                "toolTip": "Name for the Linux Data Collection Rule",
+                "label": "Data Collection Rule Name",
+                "defaultValue": "[concat('dcr-', basics('deploymentName'), '-unified')]",
+                "toolTip": "Name for the unified Data Collection Rule (supports both Windows and Linux VMs)",
                 "constraints": {
                   "required": true,
                   "regex": "^[a-zA-Z0-9-]{3,64}$",
@@ -257,7 +244,7 @@
                 "visible": "[not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'))]",
                 "options": {
                   "icon": "Info",
-                  "text": "Data Collection Rules will be created and automatically associated with VMs using a deployment script. Azure Monitor Agent (AMA) will be automatically installed on running VMs."
+                  "text": "A unified Data Collection Rule will be created for both Windows and Linux VMs. The rule will be automatically associated with VMs using a deployment script. Azure Monitor Agent (AMA) will be automatically installed on running VMs."
                 }
               }
             ]
@@ -389,7 +376,7 @@
                 "type": "Microsoft.Common.CheckBox",
                 "label": "Enable Azure Policy for automatic monitoring of new VMs",
                 "defaultValue": false,
-                "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new VMs and associate them with Data Collection Rules"
+                "toolTip": "When enabled, Azure Policy will automatically install Azure Monitor Agent on new Windows and Linux VMs and associate them with the unified Data Collection Rule"
               },
               {
                 "name": "policyAssignmentName",
@@ -410,7 +397,7 @@
                 "visible": "[steps('automation').policySection.enableAzurePolicy]",
                 "options": {
                   "icon": "Info",
-                  "text": "Azure Policy will be deployed at subscription level to automatically:\n• Install Azure Monitor Agent (AMA) on new Windows VMs\n• Assign the managed identity to VMs\n• Associate VMs with the appropriate Data Collection Rules\n\nPolicy evaluation occurs within 15 minutes of VM creation. Existing VMs can be remediated manually via Policy Compliance page.",
+                  "text": "Azure Policy will be deployed at subscription level to automatically:\n• Install Azure Monitor Agent (AMA) on new Windows and Linux VMs\n• Assign the user-assigned managed identity to VMs\n• Associate VMs with the unified Data Collection Rule\n\nPolicy evaluation occurs within 15 minutes of VM creation. Existing non-compliant VMs will be automatically remediated.",
                   "uri": "https://learn.microsoft.com/azure/governance/policy/overview"
                 }
               },
@@ -420,7 +407,7 @@
                 "visible": "[not(steps('automation').policySection.enableAzurePolicy)]",
                 "options": {
                   "icon": "Warning",
-                  "text": "Azure Policy is disabled. New VMs will NOT be automatically enrolled in monitoring. You will need to manually install Azure Monitor Agent and associate Data Collection Rules for each new VM."
+                  "text": "Azure Policy is disabled. New VMs will NOT be automatically enrolled in monitoring. You will need to manually install Azure Monitor Agent and associate the Data Collection Rule for each new VM."
                 }
               }
             ]
@@ -441,8 +428,8 @@
       "monitorExistingVMs": "[or(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all'))]",
       "monitorAllVMs": "[equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'all')]",
       "selectedVMIds": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'selected'), split(replace(steps('infrastructure').vmMonitoringSection.selectedVMResourceIds, ' ', ''), ','), parse('[]'))]",
-      "dcrNameWindows": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'), concat('dcr-', basics('deploymentName'), '-windows'), steps('infrastructure').vmMonitoringSection.dcrNameWindows)]",
-      "dcrNameLinux": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'), concat('dcr-', basics('deploymentName'), '-linux'), steps('infrastructure').vmMonitoringSection.dcrNameLinux)]",
+      "dcrNameWindows": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'), concat('dcr-', basics('deploymentName'), '-unified'), steps('infrastructure').vmMonitoringSection.dcrName)]",
+      "dcrNameLinux": "[if(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none'), concat('dcr-', basics('deploymentName'), '-unified'), steps('infrastructure').vmMonitoringSection.dcrName)]",
       "enableAzurePolicy": "[steps('automation').policySection.enableAzurePolicy]",
       "policyAssignmentName": "[if(steps('automation').policySection.enableAzurePolicy, steps('automation').policySection.policyAssignmentName, concat('ama-monitoring-', basics('deploymentName')))]",
       "enableCPUAlerts": "[steps('monitoring').enabledAlertsSection.enableCPUAlerts]",
