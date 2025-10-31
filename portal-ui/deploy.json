@@ -768,235 +768,188 @@
       ]
     },
     {
-      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "[format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName'))]",
-      "subscriptionId": "[subscription().subscriptionId]",
-      "location": "[parameters('location')]",
-      "properties": {
-        "mode": "Incremental",
-        "expressionEvaluationOptions": {
-          "scope": "inner"
+  "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
+  "type": "Microsoft.Resources/deployments",
+  "apiVersion": "2022-09-01",
+  "name": "[format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName'))]",
+  "subscriptionId": "[subscription().subscriptionId]",
+  "location": "[parameters('location')]",
+  "properties": {
+    "mode": "Incremental",
+    "expressionEvaluationOptions": {
+      "scope": "inner"
+    },
+    "parameters": {
+      "policyAssignmentName": {
+        "value": "[parameters('changeTrackingVMPolicyAssignmentName')]"
+      },
+      "managedIdentityResourceId": {
+        "value": "[variables('managedIdentityId')]"
+      },
+      "location": {
+        "value": "[parameters('location')]"
+      }
+    },
+    "template": {
+      "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "policyAssignmentName": {
+          "type": "string"
         },
-        "parameters": {
-          "policyAssignmentName": {
-            "value": "[parameters('changeTrackingVMPolicyAssignmentName')]"
-          },
-          "managedIdentityResourceId": {
-            "value": "[variables('managedIdentityId')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "workspaceId": {
-            "value": "[variables('workspaceId')]"
-          }
+        "managedIdentityResourceId": {
+          "type": "string"
         },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "policyAssignmentName": {
-              "type": "string"
-            },
-            "managedIdentityResourceId": {
-              "type": "string"
-            },
-            "location": {
-              "type": "string"
-            },
-            "workspaceId": {
-              "type": "string"
-            }
-          },
-          "variables": {
-            "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/ad1eeff9-20d7-4c82-a04e-903acab0bfc1"
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/policyAssignments",
-              "apiVersion": "2023-04-01",
-              "name": "[parameters('policyAssignmentName')]",
-              "location": "[parameters('location')]",
-              "identity": {
-                "type": "UserAssigned",
-                "userAssignedIdentities": {
-                  "[parameters('managedIdentityResourceId')]": {}
-                }
-              },
-              "properties": {
-                "displayName": "[format('Configure Windows VMs for ChangeTracking - {0}', parameters('policyAssignmentName'))]",
-                "description": "Automatically installs ChangeTracking extension on Windows Azure VMs for Change Tracking and Inventory monitoring",
-                "enforcementMode": "Default",
-                "policyDefinitionId": "[variables('policyDefinitionId')]",
-                "parameters": {
-                  "effect": {
-                    "value": "DeployIfNotExists"
-                  },
-                  "bringYourOwnUserAssignedManagedIdentity": {
-                    "value": true
-                  },
-                  "restrictBringYourOwnUserAssignedIdentityToSubscription": {
-                    "value": false
-                  },
-                  "userAssignedIdentityResourceId": {
-                    "value": "[parameters('managedIdentityResourceId')]"
-                  },
-                  "userAssignedManagedIdentityName": {
-                    "value": "[split(parameters('managedIdentityResourceId'), '/')[8]]"
-                  },
-                  "userAssignedManagedIdentityResourceGroup": {
-                    "value": "[split(parameters('managedIdentityResourceId'), '/')[4]]"
-                  },
-                  "applicableLocations": {
-                    "value": [
-                      "australiacentral", "australiacentral2", "australiaeast", "australiasoutheast",
-                      "brazilsouth", "brazilsoutheast", "canadacentral", "canadaeast",
-                      "centralindia", "centralus", "centraluseuap", "eastasia", "eastus", "eastus2", "eastus2euap",
-                      "francecentral", "francesouth", "germanynorth", "germanywestcentral",
-                      "israelcentral", "italynorth", "japaneast", "japanwest",
-                      "jioindiacentral", "jioindiawest", "koreacentral", "koreasouth",
-                      "malaysiasouth", "mexicocentral", "northcentralus", "northeurope",
-                      "norwayeast", "norwaywest", "polandcentral", "qatarcentral",
-                      "southafricanorth", "southafricawest", "southcentralus", "southeastasia", "southindia",
-                      "spaincentral", "swedencentral", "swedensouth", "switzerlandnorth", "switzerlandwest",
-                      "taiwannorth", "taiwannorthwest", "uaecentral", "uaenorth",
-                      "uksouth", "ukwest", "westcentralus", "westeurope", "westindia", "westus", "westus2", "westus3"
-                    ]
-                  }
-                },
-                "nonComplianceMessages": [
-                  {
-                    "message": "Windows Azure VMs must have ChangeTracking extension installed for Change Tracking and Inventory monitoring"
-                  }
-                ]
-              }
-            }
-          ],
-          "outputs": {
-            "policyAssignmentId": {
-              "type": "string",
-              "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-            }
-          }
+        "location": {
+          "type": "string"
         }
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-      ]
-    },
+      "variables": {
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/ad1eeff9-20d7-4c82-a04e-903acab0bfc1"
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Authorization/policyAssignments",
+          "apiVersion": "2023-04-01",
+          "name": "[parameters('policyAssignmentName')]",
+          "location": "[parameters('location')]",
+          "identity": {
+            "type": "UserAssigned",
+            "userAssignedIdentities": {
+              "[parameters('managedIdentityResourceId')]": {}
+            }
+          },
+          "properties": {
+            "displayName": "[format('Configure Windows VMs for ChangeTracking - {0}', parameters('policyAssignmentName'))]",
+            "description": "Automatically installs ChangeTracking extension on Windows Azure VMs for Change Tracking and Inventory monitoring",
+            "enforcementMode": "Default",
+            "policyDefinitionId": "[variables('policyDefinitionId')]",
+            "parameters": {
+              "effect": {
+                "value": "DeployIfNotExists"
+              },
+              "bringYourOwnUserAssignedManagedIdentity": {
+                "value": true
+              },
+              "userAssignedManagedIdentityResourceId": {
+                "value": "[parameters('managedIdentityResourceId')]"
+              }
+            },
+            "nonComplianceMessages": [
+              {
+                "message": "Windows Azure VMs must have ChangeTracking extension installed for Change Tracking and Inventory monitoring"
+              }
+            ]
+          }
+        }
+      ],
+      "outputs": {
+        "policyAssignmentId": {
+          "type": "string",
+          "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+        }
+      }
+    }
+  },
+  "dependsOn": [
+    "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+    "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
+  ]
+},
     {
-      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc'))]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "[format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName'))]",
-      "subscriptionId": "[subscription().subscriptionId]",
-      "location": "[parameters('location')]",
-      "properties": {
-        "mode": "Incremental",
-        "expressionEvaluationOptions": {
-          "scope": "inner"
+  "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc'))]",
+  "type": "Microsoft.Resources/deployments",
+  "apiVersion": "2022-09-01",
+  "name": "[format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName'))]",
+  "subscriptionId": "[subscription().subscriptionId]",
+  "location": "[parameters('location')]",
+  "properties": {
+    "mode": "Incremental",
+    "expressionEvaluationOptions": {
+      "scope": "inner"
+    },
+    "parameters": {
+      "policyAssignmentName": {
+        "value": "[parameters('changeTrackingArcPolicyAssignmentName')]"
+      },
+      "location": {
+        "value": "[parameters('location')]"
+      }
+    },
+    "template": {
+      "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "policyAssignmentName": {
+          "type": "string"
         },
-        "parameters": {
-          "policyAssignmentName": {
-            "value": "[parameters('changeTrackingArcPolicyAssignmentName')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "policyAssignmentName": {
-              "type": "string"
-            },
-            "location": {
-              "type": "string"
-            }
-          },
-          "variables": {
-            "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/4bb303db-d051-4099-95d2-e3e1428a4cd5"
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/policyAssignments",
-              "apiVersion": "2023-04-01",
-              "name": "[parameters('policyAssignmentName')]",
-              "location": "[parameters('location')]",
-              "identity": {
-                "type": "SystemAssigned"
-              },
-              "properties": {
-                "displayName": "[format('Configure ChangeTracking Extension for Windows Arc machines - {0}', parameters('policyAssignmentName'))]",
-                "description": "Automatically deploys ChangeTracking extension on Windows Arc-enabled servers for Change Tracking and Inventory monitoring",
-                "enforcementMode": "Default",
-                "policyDefinitionId": "[variables('policyDefinitionId')]",
-                "parameters": {
-                  "effect": {
-                    "value": "DeployIfNotExists"
-                  },
-                  "applicableLocations": {
-                    "value": [
-                      "australiacentral", "australiacentral2", "australiaeast", "australiasoutheast",
-                      "brazilsouth", "brazilsoutheast", "canadacentral", "canadaeast",
-                      "centralindia", "centralus", "centraluseuap", "eastasia", "eastus", "eastus2", "eastus2euap",
-                      "francecentral", "francesouth", "germanynorth", "germanywestcentral",
-                      "israelcentral", "italynorth", "japaneast", "japanwest",
-                      "jioindiacentral", "jioindiawest", "koreacentral", "koreasouth",
-                      "malaysiasouth", "mexicocentral", "northcentralus", "northeurope",
-                      "norwayeast", "norwaywest", "polandcentral", "qatarcentral",
-                      "southafricanorth", "southafricawest", "southcentralus", "southeastasia", "southindia",
-                      "spaincentral", "swedencentral", "swedensouth", "switzerlandnorth", "switzerlandwest",
-                      "taiwannorth", "taiwannorthwest", "uaecentral", "uaenorth",
-                      "uksouth", "ukwest", "westcentralus", "westeurope", "westindia", "westus", "westus2", "westus3"
-                    ]
-                  }
-                },
-                "nonComplianceMessages": [
-                  {
-                    "message": "Windows Arc-enabled servers must have ChangeTracking extension installed for Change Tracking and Inventory monitoring"
-                  }
-                ]
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ChangeTrackingArcContributor')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-                "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
-                "principalType": "ServicePrincipal",
-                "description": "Allows Change Tracking Arc Policy to deploy extensions"
-              },
-              "dependsOn": [
-                "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-              ]
-            }
-          ],
-          "outputs": {
-            "policyAssignmentId": {
-              "type": "string",
-              "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-            },
-            "policyAssignmentPrincipalId": {
-              "type": "string",
-              "value": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]"
-            }
-          }
+        "location": {
+          "type": "string"
         }
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-      ]
-    },
+      "variables": {
+        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/4bb303db-d051-4099-95d2-e3e1428a4cd5"
+      },
+      "resources": [
+        {
+          "type": "Microsoft.Authorization/policyAssignments",
+          "apiVersion": "2023-04-01",
+          "name": "[parameters('policyAssignmentName')]",
+          "location": "[parameters('location')]",
+          "identity": {
+            "type": "SystemAssigned"
+          },
+          "properties": {
+            "displayName": "[format('Configure ChangeTracking Extension for Windows Arc machines - {0}', parameters('policyAssignmentName'))]",
+            "description": "Automatically deploys ChangeTracking extension on Windows Arc-enabled servers for Change Tracking and Inventory monitoring",
+            "enforcementMode": "Default",
+            "policyDefinitionId": "[variables('policyDefinitionId')]",
+            "parameters": {
+              "effect": {
+                "value": "DeployIfNotExists"
+              }
+            },
+            "nonComplianceMessages": [
+              {
+                "message": "Windows Arc-enabled servers must have ChangeTracking extension installed for Change Tracking and Inventory monitoring"
+              }
+            ]
+          }
+        },
+        {
+          "type": "Microsoft.Authorization/roleAssignments",
+          "apiVersion": "2022-04-01",
+          "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ChangeTrackingArcContributor')]",
+          "properties": {
+            "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+            "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
+            "principalType": "ServicePrincipal",
+            "description": "Allows Change Tracking Arc Policy to deploy extensions"
+          },
+          "dependsOn": [
+            "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+          ]
+        }
+      ],
+      "outputs": {
+        "policyAssignmentId": {
+          "type": "string",
+          "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+        },
+        "policyAssignmentPrincipalId": {
+          "type": "string",
+          "value": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]"
+        }
+      }
+    }
+  },
+  "dependsOn": [
+    "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
+    "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
+  ]
+},
     {
       "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
       "type": "Microsoft.Resources/deploymentScripts",
