@@ -438,122 +438,66 @@
       ]
     },
     {
-  "condition": "[parameters('enableChangeTracking')]",
-  "type": "Microsoft.Insights/dataCollectionRules",
-  "apiVersion": "2022-06-01",
-  "name": "[format('dcr-{0}-changetracking', parameters('deploymentName'))]",
-  "location": "[parameters('location')]",
-  "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], json('{}'))]",
-  "properties": {
-    "dataSources": {
-      "extensions": [
-        {
-          "name": "CTDataSource-Windows",
-          "streams": [
-            "Microsoft-ConfigurationChange",
-            "Microsoft-ConfigurationChangeV2",
-            "Microsoft-ConfigurationData"
-          ],
-          "extensionName": "ChangeTracking-Windows"
+      "condition": "[parameters('enableChangeTracking')]",
+      "type": "Microsoft.Insights/dataCollectionRules",
+      "apiVersion": "2022-06-01",
+      "name": "[format('dcr-{0}-changetracking', parameters('deploymentName'))]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/dataCollectionRules'), parameters('tagsByResource')['Microsoft.Insights/dataCollectionRules'], json('{}'))]",
+      "properties": {
+        "dataSources": {
+          "extensions": [
+            {
+              "name": "CTDataSource-Windows",
+              "streams": [
+                "Microsoft-ConfigurationChange",
+                "Microsoft-ConfigurationChangeV2",
+                "Microsoft-ConfigurationData"
+              ],
+              "extensionName": "ChangeTracking-Windows"
+            },
+            {
+              "name": "CTDataSource-Linux",
+              "streams": [
+                "Microsoft-ConfigurationChange",
+                "Microsoft-ConfigurationChangeV2",
+                "Microsoft-ConfigurationData"
+              ],
+              "extensionName": "ChangeTracking-Linux"
+            }
+          ]
         },
-        {
-          "name": "CTDataSource-Linux",
-          "streams": [
-            "Microsoft-ConfigurationChange",
-            "Microsoft-ConfigurationChangeV2",
-            "Microsoft-ConfigurationData"
-          ],
-          "extensionName": "ChangeTracking-Linux"
-        }
-      ]
-    },
-    "destinations": {
-      "logAnalytics": [
-        {
-          "name": "ChangeTracking-Logs-Dest",
-          "workspaceResourceId": "[variables('workspaceId')]"
-        }
-      ]
-    },
-    "dataFlows": [
-      {
-        "streams": [
-          "Microsoft-ConfigurationChange",
-          "Microsoft-ConfigurationChangeV2",
-          "Microsoft-ConfigurationData"
+        "destinations": {
+          "logAnalytics": [
+            {
+              "name": "ChangeTracking-Logs-Dest",
+              "workspaceResourceId": "[variables('workspaceId')]"
+            }
+          ]
+        },
+        "dataFlows": [
+          {
+            "streams": [
+              "Microsoft-ConfigurationChange",
+              "Microsoft-ConfigurationChangeV2",
+              "Microsoft-ConfigurationData"
+            ],
+            "destinations": [
+              "ChangeTracking-Logs-Dest"
+            ]
+          }
         ],
-        "destinations": [
-          "ChangeTracking-Logs-Dest"
-        ]
-      }
-    ],
-    "description": "Data Collection Rule for Change Tracking and Inventory (Windows and Linux)"
-  },
-  "dependsOn": [
-    "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
-  ]
-}
-    {
-      "condition": "[parameters('monitorExistingVMs')]",
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2020-10-01",
-      "name": "[format('setup-azure-vms-{0}', parameters('deploymentName'))]",
-      "location": "[parameters('location')]",
-      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Resources/deploymentScripts'), parameters('tagsByResource')['Microsoft.Resources/deploymentScripts'], json('{}'))]",
-      "kind": "AzurePowerShell",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', variables('managedIdentityId'))]": {}
-        }
-      },
-      "properties": {
-        "azPowerShellVersion": "10.0",
-        "retentionInterval": "PT1H",
-        "timeout": "PT60M",
-        "cleanupPreference": "OnSuccess",
-        "arguments": "[format('-VMIdsBase64 \"{0}\" -MonitorAllVMs ${1} -DCRId \"{2}\"', base64(string(parameters('selectedVMIds'))), parameters('monitorAllVMs'), resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')))]",
-        "scriptContent": "param(\n    [string]$VMIdsBase64,\n    [bool]$MonitorAllVMs,\n    [string]$DCRId\n)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"Azure VM Monitoring Setup\"\nWrite-Host \"========================================\"\nWrite-Host \"Monitor All VMs: $MonitorAllVMs\"\nWrite-Host \"DCR ID: $DCRId\"\nWrite-Host \"\"\n\n# Wait for role propagation\nWrite-Host \"Waiting 60 seconds for role assignment propagation...\"\nStart-Sleep -Seconds 60\n\n$vmArray = @()\n\nif ($MonitorAllVMs) {\n    Write-Host \"Discovering all Azure VMs in subscription...\"\n    try {\n        $allVMs = Get-AzVM -ErrorAction Stop\n        Write-Host \"Found $($allVMs.Count) Azure VMs\"\n        \n        foreach ($vm in $allVMs) {\n            $vmArray += $vm.Id\n            Write-Host \"  - $($vm.Name)\"\n        }\n    }\n    catch {\n        Write-Host \"ERROR: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\nelse {\n    Write-Host \"Decoding VM IDs from Base64...\"\n    \n    try {\n        $VMIdsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($VMIdsBase64))\n        Write-Host \"Decoded JSON: $VMIdsJson\"\n        \n        if ([string]::IsNullOrWhiteSpace($VMIdsJson) -or $VMIdsJson -eq '[]') {\n            Write-Host \"ERROR: No VMs provided!\" -ForegroundColor Red\n            exit 1\n        }\n        \n        $vmArray = $VMIdsJson | ConvertFrom-Json\n        Write-Host \"Parsed $($vmArray.Count) VM(s)\"\n    }\n    catch {\n        Write-Host \"ERROR: Failed to decode/parse: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\n\nif ($vmArray.Count -eq 0) {\n    Write-Host \"No Azure VMs to process\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'NoVMs'\n    exit 0\n}\n\nWrite-Host \"\"\nWrite-Host \"Processing $($vmArray.Count) Azure VM(s)...\"\nWrite-Host \"\"\n\n$results = @()\n$successCount = 0\n$partialCount = 0\n$failCount = 0\n\nforeach ($vmId in $vmArray) {\n    Write-Host \"========================================\"\n    Write-Host \"Processing: $vmId\" -ForegroundColor Cyan\n    Write-Host \"========================================\"\n    \n    $vmName = $vmId.Split('/')[-1]\n    $vmRG = $vmId.Split('/')[4]\n    \n    Write-Host \"VM Name: $vmName\"\n    Write-Host \"Resource Group: $vmRG\"\n    \n    $amaInstalled = $false\n    $dcrAssociated = $false\n    $vmRunning = $false\n    $vmStatus = \"Unknown\"\n    $errorMessage = \"\"\n    \n    try {\n        # Get VM details\n        $vm = Get-AzVM -ResourceGroupName $vmRG -Name $vmName -ErrorAction Stop\n        $osType = $vm.StorageProfile.OsDisk.OsType\n        $location = $vm.Location\n        \n        # Get VM status\n        $vmStatusObj = Get-AzVM -ResourceGroupName $vmRG -Name $vmName -Status -ErrorAction Stop\n        $powerState = $vmStatusObj.Statuses | Where-Object { $_.Code -like 'PowerState/*' } | Select-Object -First 1\n        $vmStatus = if ($powerState) { $powerState.Code.Replace('PowerState/', '') } else { 'unknown' }\n        $vmRunning = ($vmStatus -eq 'running')\n        \n        Write-Host \"OS Type: $osType\"\n        Write-Host \"Location: $location\"\n        Write-Host \"Status: $vmStatus\" -ForegroundColor $(if ($vmRunning) { 'Green' } else { 'Yellow' })\n        Write-Host \"\"\n        \n        # Determine extension details\n        if ($osType -eq \"Linux\") {\n            $extensionName = \"AzureMonitorLinuxAgent\"\n            $extensionPublisher = \"Microsoft.Azure.Monitor\"\n            $extensionType = \"AzureMonitorLinuxAgent\"\n            $extensionVersion = \"1.28\"\n        }\n        else {\n            $extensionName = \"AzureMonitorWindowsAgent\"\n            $extensionPublisher = \"Microsoft.Azure.Monitor\"\n            $extensionType = \"AzureMonitorWindowsAgent\"\n            $extensionVersion = \"1.22\"\n        }\n        \n        # Step 1: Check and install AMA (only if VM is running)\n        Write-Host \"[1/2] Azure Monitor Agent...\" -ForegroundColor Yellow\n        \n        if ($vmRunning) {\n            $existingExtension = Get-AzVMExtension `\n                -ResourceGroupName $vmRG `\n                -VMName $vmName `\n                -Name $extensionName `\n                -ErrorAction SilentlyContinue\n            \n            if ($existingExtension) {\n                Write-Host \"  ✓ AMA already installed (v$($existingExtension.TypeHandlerVersion))\" -ForegroundColor Green\n                $amaInstalled = $true\n            }\n            else {\n                Write-Host \"  Installing Azure Monitor Agent...\" -ForegroundColor Cyan\n                \n                try {\n                    $extensionResult = Set-AzVMExtension `\n                        -ResourceGroupName $vmRG `\n                        -VMName $vmName `\n                        -Name $extensionName `\n                        -Publisher $extensionPublisher `\n                        -ExtensionType $extensionType `\n                        -TypeHandlerVersion $extensionVersion `\n                        -EnableAutomaticUpgrade $true `\n                        -Location $location `\n                        -ErrorAction Stop\n                    \n                    Write-Host \"  ✓ AMA installed successfully\" -ForegroundColor Green\n                    $amaInstalled = $true\n                }\n                catch {\n                    Write-Host \"  ✗ Failed to install AMA: $($_.Exception.Message)\" -ForegroundColor Red\n                    $errorMessage = \"AMA: $($_.Exception.Message)\"\n                    $amaInstalled = $false\n                }\n            }\n        }\n        else {\n            Write-Host \"  ⚠ VM is stopped - AMA will be installed when VM starts\" -ForegroundColor Yellow\n            $amaInstalled = $false\n        }\n        \n        Write-Host \"\"\n        \n        # Step 2: Associate DCR (works even if VM is stopped)\n        Write-Host \"[2/2] Data Collection Rule Association...\" -ForegroundColor Yellow\n        \n        $associationName = \"dcr-association-$vmName\"\n        \n        try {\n            $existingAssociation = Get-AzDataCollectionRuleAssociation `\n                -TargetResourceId $vmId `\n                -AssociationName $associationName `\n                -ErrorAction SilentlyContinue\n            \n            if ($existingAssociation) {\n                Write-Host \"  ✓ DCR association already exists\" -ForegroundColor Green\n                $dcrAssociated = $true\n            }\n            else {\n                $association = New-AzDataCollectionRuleAssociation `\n                    -TargetResourceId $vmId `\n                    -AssociationName $associationName `\n                    -DataCollectionRuleId $DCRId `\n                    -ErrorAction Stop\n                \n                Write-Host \"  ✓ DCR associated successfully\" -ForegroundColor Green\n                $dcrAssociated = $true\n            }\n        }\n        catch {\n            Write-Host \"  ✗ Failed to associate DCR: $($_.Exception.Message)\" -ForegroundColor Red\n            if ($errorMessage) {\n                $errorMessage += \"; DCR: $($_.Exception.Message)\"\n            } else {\n                $errorMessage = \"DCR: $($_.Exception.Message)\"\n            }\n            $dcrAssociated = $false\n        }\n        \n        Write-Host \"\"\n        \n        # Determine overall status\n        if ($dcrAssociated) {\n            if ($amaInstalled -or -not $vmRunning) {\n                Write-Host \"✓ Azure VM configured successfully!\" -ForegroundColor Green\n                if (-not $vmRunning) {\n                    Write-Host \"  Note: Start the VM to complete AMA installation\" -ForegroundColor Cyan\n                }\n                $successCount++\n                $status = \"Success\"\n            }\n            else {\n                Write-Host \"⚠ Partially configured (DCR OK, AMA failed)\" -ForegroundColor Yellow\n                $partialCount++\n                $status = \"Partial\"\n            }\n        }\n        else {\n            Write-Host \"✗ Configuration failed\" -ForegroundColor Red\n            $failCount++\n            $status = \"Failed\"\n        }\n        \n        Write-Host \"\"\n        \n        $results += @{\n            VMName = $vmName\n            Status = $status\n            OSType = $osType\n            VMStatus = $vmStatus\n            AMAInstalled = $amaInstalled\n            DCRAssociated = $dcrAssociated\n            Error = $errorMessage\n        }\n    }\n    catch {\n        Write-Host \"\"\n        Write-Host \"✗ FAILED: $($_.Exception.Message)\" -ForegroundColor Red\n        Write-Host \"\"\n        \n        $failCount++\n        \n        $results += @{\n            VMName = $vmName\n            Status = \"Failed\"\n            Error = $_.Exception.Message\n        }\n    }\n}\n\nWrite-Host \"========================================\"\nWrite-Host \"SUMMARY\"\nWrite-Host \"========================================\"\nWrite-Host \"Total Azure VMs: $($vmArray.Count)\"\nWrite-Host \"✓ Fully Configured: $successCount\" -ForegroundColor Green\nif ($partialCount -gt 0) {\n    Write-Host \"⚠ Partially Configured: $partialCount (DCR OK, AMA pending)\" -ForegroundColor Yellow\n}\nif ($failCount -gt 0) {\n    Write-Host \"✗ Failed: $failCount\" -ForegroundColor Red\n}\nWrite-Host \"========================================\"\nWrite-Host \"\"\n\nif ($successCount -gt 0 -or $partialCount -gt 0) {\n    Write-Host \"DCR associations are active on $(($successCount + $partialCount)) Azure VM(s)\" -ForegroundColor Green\n    if ($partialCount -gt 0) {\n        Write-Host \"Start stopped VMs to complete AMA installation\" -ForegroundColor Cyan\n    }\n    Write-Host \"Data will start appearing in Log Analytics within 5-10 minutes after VMs are running\" -ForegroundColor Cyan\n}\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['results'] = $results | ConvertTo-Json -Compress\n$DeploymentScriptOutputs['successCount'] = $successCount\n$DeploymentScriptOutputs['partialCount'] = $partialCount\n$DeploymentScriptOutputs['failCount'] = $failCount\n$DeploymentScriptOutputs['totalVMs'] = $vmArray.Count\n$DeploymentScriptOutputs['status'] = 'Completed'\n"
+        "description": "Data Collection Rule for Change Tracking and Inventory (Windows and Linux)"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]"
       ]
     },
     {
-      "condition": "[parameters('monitorExistingArcServers')]",
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2020-10-01",
-      "name": "[format('setup-arc-servers-{0}', parameters('deploymentName'))]",
-      "location": "[parameters('location')]",
-      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Resources/deploymentScripts'), parameters('tagsByResource')['Microsoft.Resources/deploymentScripts'], json('{}'))]",
-      "kind": "AzurePowerShell",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', variables('managedIdentityId'))]": {}
-        }
-      },
-      "properties": {
-        "azPowerShellVersion": "10.0",
-        "retentionInterval": "PT1H",
-        "timeout": "PT60M",
-        "cleanupPreference": "OnSuccess",
-        "arguments": "[format('-ArcServerIdsBase64 \"{0}\" -MonitorAllArcServers ${1} -DCRId \"{2}\"', base64(string(parameters('selectedArcServerIds'))), parameters('monitorAllArcServers'), resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')))]",
-        "scriptContent": "param(\n    [string]$ArcServerIdsBase64,\n    [bool]$MonitorAllArcServers,\n    [string]$DCRId\n)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"Arc Server Monitoring Setup\"\nWrite-Host \"========================================\"\nWrite-Host \"Monitor All Arc Servers: $MonitorAllArcServers\"\nWrite-Host \"DCR ID: $DCRId\"\nWrite-Host \"\"\n\n# Install Az.ConnectedMachine module\nWrite-Host \"Installing Az.ConnectedMachine module...\" -ForegroundColor Cyan\ntry {\n    if (-not (Get-Module -ListAvailable -Name Az.ConnectedMachine)) {\n        Install-Module -Name Az.ConnectedMachine -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop\n        Write-Host \"✓ Az.ConnectedMachine module installed successfully\" -ForegroundColor Green\n    } else {\n        Write-Host \"✓ Az.ConnectedMachine module already installed\" -ForegroundColor Green\n    }\n    Import-Module Az.ConnectedMachine -ErrorAction Stop\n    Write-Host \"✓ Az.ConnectedMachine module imported\" -ForegroundColor Green\n}\ncatch {\n    Write-Host \"ERROR: Failed to install/import Az.ConnectedMachine module: $_\" -ForegroundColor Red\n    Write-Host \"This module is required to manage Arc-enabled servers\" -ForegroundColor Red\n    exit 1\n}\nWrite-Host \"\"\n\n# Wait for role propagation\nWrite-Host \"Waiting 60 seconds for role assignment propagation...\"\nStart-Sleep -Seconds 60\n\n$arcArray = @()\n\nif ($MonitorAllArcServers) {\n    Write-Host \"Discovering all Arc-enabled servers in subscription...\"\n    try {\n        $allArcServers = Get-AzConnectedMachine -ErrorAction Stop\n        Write-Host \"Found $($allArcServers.Count) Arc-enabled servers\"\n        \n        foreach ($arc in $allArcServers) {\n            $arcArray += $arc.Id\n            Write-Host \"  - $($arc.Name)\"\n        }\n    }\n    catch {\n        Write-Host \"ERROR: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\nelse {\n    Write-Host \"Decoding Arc Server IDs from Base64...\"\n    \n    try {\n        $ArcIdsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($ArcServerIdsBase64))\n        Write-Host \"Decoded JSON: $ArcIdsJson\"\n        \n        if ([string]::IsNullOrWhiteSpace($ArcIdsJson) -or $ArcIdsJson -eq '[]') {\n            Write-Host \"ERROR: No Arc servers provided!\" -ForegroundColor Red\n            exit 1\n        }\n        \n        $arcArray = $ArcIdsJson | ConvertFrom-Json\n        Write-Host \"Parsed $($arcArray.Count) Arc server(s)\"\n    }\n    catch {\n        Write-Host \"ERROR: Failed to decode/parse: $_\" -ForegroundColor Red\n        exit 1\n    }\n}\n\nif ($arcArray.Count -eq 0) {\n    Write-Host \"No Arc servers to process\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'NoArcServers'\n    exit 0\n}\n\nWrite-Host \"\"\nWrite-Host \"Processing $($arcArray.Count) Arc server(s)...\"\nWrite-Host \"\"\n\n$results = @()\n$successCount = 0\n$partialCount = 0\n$failCount = 0\n\nforeach ($arcId in $arcArray) {\n    Write-Host \"========================================\"\n    Write-Host \"Processing: $arcId\" -ForegroundColor Cyan\n    Write-Host \"========================================\"\n    \n    $arcName = $arcId.Split('/')[-1]\n    $arcRG = $arcId.Split('/')[4]\n    \n    Write-Host \"Arc Server Name: $arcName\"\n    Write-Host \"Resource Group: $arcRG\"\n    \n    $amaInstalled = $false\n    $dcrAssociated = $false\n    $arcStatus = \"Unknown\"\n    $errorMessage = \"\"\n    \n    try {\n        # Get Arc machine details\n        $arc = Get-AzConnectedMachine -ResourceGroupName $arcRG -Name $arcName -ErrorAction Stop\n        $osType = $arc.OSName\n        $location = $arc.Location\n        $arcStatus = $arc.Status\n        \n        Write-Host \"OS Type: $osType\"\n        Write-Host \"Location: $location\"\n        Write-Host \"Status: $arcStatus\" -ForegroundColor $(if ($arcStatus -eq 'Connected') { 'Green' } else { 'Yellow' })\n        Write-Host \"\"\n        \n        # Determine extension details\n        if ($osType -like \"*Linux*\") {\n            $extensionName = \"AzureMonitorLinuxAgent\"\n            $extensionPublisher = \"Microsoft.Azure.Monitor\"\n            $extensionType = \"AzureMonitorLinuxAgent\"\n        }\n        else {\n            $extensionName = \"AzureMonitorWindowsAgent\"\n            $extensionPublisher = \"Microsoft.Azure.Monitor\"\n            $extensionType = \"AzureMonitorWindowsAgent\"\n        }\n        \n        # Step 1: Check and install AMA\n        Write-Host \"[1/2] Azure Monitor Agent...\" -ForegroundColor Yellow\n        \n        if ($arcStatus -eq 'Connected') {\n            $existingExtension = Get-AzConnectedMachineExtension `\n                -ResourceGroupName $arcRG `\n                -MachineName $arcName `\n                -Name $extensionName `\n                -ErrorAction SilentlyContinue\n            \n            if ($existingExtension) {\n                Write-Host \"  ✓ AMA already installed\" -ForegroundColor Green\n                $amaInstalled = $true\n            }\n            else {\n                Write-Host \"  Installing Azure Monitor Agent...\" -ForegroundColor Cyan\n                \n                try {\n                    $extensionResult = New-AzConnectedMachineExtension `\n                        -ResourceGroupName $arcRG `\n                        -MachineName $arcName `\n                        -Name $extensionName `\n                        -Publisher $extensionPublisher `\n                        -ExtensionType $extensionType `\n                        -Location $location `\n                        -EnableAutomaticUpgrade `\n                        -ErrorAction Stop\n                    \n                    Write-Host \"  ✓ AMA installed successfully\" -ForegroundColor Green\n                    $amaInstalled = $true\n                }\n                catch {\n                    Write-Host \"  ✗ Failed to install AMA: $($_.Exception.Message)\" -ForegroundColor Red\n                    $errorMessage = \"AMA: $($_.Exception.Message)\"\n                    $amaInstalled = $false\n                }\n            }\n        }\n        else {\n            Write-Host \"  ⚠ Arc server is not connected\" -ForegroundColor Yellow\n            $amaInstalled = $false\n        }\n        \n        Write-Host \"\"\n        \n        # Step 2: Associate DCR\n        Write-Host \"[2/2] Data Collection Rule Association...\" -ForegroundColor Yellow\n        \n        $associationName = \"dcr-association-$arcName\"\n        \n        try {\n            $existingAssociation = Get-AzDataCollectionRuleAssociation `\n                -TargetResourceId $arcId `\n                -AssociationName $associationName `\n                -ErrorAction SilentlyContinue\n            \n            if ($existingAssociation) {\n                Write-Host \"  ✓ DCR association already exists\" -ForegroundColor Green\n                $dcrAssociated = $true\n            }\n            else {\n                $association = New-AzDataCollectionRuleAssociation `\n                    -TargetResourceId $arcId `\n                    -AssociationName $associationName `\n                    -DataCollectionRuleId $DCRId `\n                    -ErrorAction Stop\n                \n                Write-Host \"  ✓ DCR associated successfully\" -ForegroundColor Green\n                $dcrAssociated = $true\n            }\n        }\n        catch {\n            Write-Host \"  ✗ Failed to associate DCR: $($_.Exception.Message)\" -ForegroundColor Red\n            if ($errorMessage) {\n                $errorMessage += \"; DCR: $($_.Exception.Message)\"\n            } else {\n                $errorMessage = \"DCR: $($_.Exception.Message)\"\n            }\n            $dcrAssociated = $false\n        }\n        \n        Write-Host \"\"\n        \n        # Determine overall status\n        if ($dcrAssociated) {\n            if ($amaInstalled -or $arcStatus -ne 'Connected') {\n                Write-Host \"✓ Arc server configured successfully!\" -ForegroundColor Green\n                if ($arcStatus -ne 'Connected') {\n                    Write-Host \"  Note: Reconnect Arc server to complete AMA installation\" -ForegroundColor Cyan\n                }\n                $successCount++\n                $status = \"Success\"\n            }\n            else {\n                Write-Host \"⚠ Partially configured (DCR OK, AMA failed)\" -ForegroundColor Yellow\n                $partialCount++\n                $status = \"Partial\"\n            }\n        }\n        else {\n            Write-Host \"✗ Configuration failed\" -ForegroundColor Red\n            $failCount++\n            $status = \"Failed\"\n        }\n        \n        Write-Host \"\"\n        \n        $results += @{\n            ArcServerName = $arcName\n            Status = $status\n            OSType = $osType\n            ArcStatus = $arcStatus\n            AMAInstalled = $amaInstalled\n            DCRAssociated = $dcrAssociated\n            Error = $errorMessage\n        }\n    }\n    catch {\n        Write-Host \"\"\n        Write-Host \"✗ FAILED: $($_.Exception.Message)\" -ForegroundColor Red\n        Write-Host \"\"\n        \n        $failCount++\n        \n        $results += @{\n            ArcServerName = $arcName\n            Status = \"Failed\"\n            Error = $_.Exception.Message\n        }\n    }\n}\n\nWrite-Host \"========================================\"\nWrite-Host \"SUMMARY\"\nWrite-Host \"========================================\"\nWrite-Host \"Total Arc Servers: $($arcArray.Count)\"\nWrite-Host \"✓ Fully Configured: $successCount\" -ForegroundColor Green\nif ($partialCount -gt 0) {\n    Write-Host \"⚠ Partially Configured: $partialCount (DCR OK, AMA pending)\" -ForegroundColor Yellow\n}\nif ($failCount -gt 0) {\n    Write-Host \"✗ Failed: $failCount\" -ForegroundColor Red\n}\nWrite-Host \"========================================\"\nWrite-Host \"\"\n\nif ($successCount -gt 0 -or $partialCount -gt 0) {\n    Write-Host \"DCR associations are active on $(($successCount + $partialCount)) Arc server(s)\" -ForegroundColor Green\n    if ($partialCount -gt 0) {\n        Write-Host \"Reconnect Arc servers to complete AMA installation\" -ForegroundColor Cyan\n    }\n    Write-Host \"Data will start appearing in Log Analytics within 5-10 minutes\" -ForegroundColor Cyan\n}\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['results'] = $results | ConvertTo-Json -Compress\n$DeploymentScriptOutputs['successCount'] = $successCount\n$DeploymentScriptOutputs['partialCount'] = $partialCount\n$DeploymentScriptOutputs['failCount'] = $failCount\n$DeploymentScriptOutputs['totalArcServers'] = $arcArray.Count\n$DeploymentScriptOutputs['status'] = 'Completed'\n"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-      ]
-    },
-    {
-      "condition": "[parameters('enableAzureVMPolicy')]",
+      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "[format('policyAssignment-azure-vms-{0}', parameters('deploymentName'))]",
+      "name": "[format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName'))]",
       "subscriptionId": "[subscription().subscriptionId]",
       "location": "[parameters('location')]",
       "properties": {
@@ -563,10 +507,7 @@
         },
         "parameters": {
           "policyAssignmentName": {
-            "value": "[parameters('azureVMPolicyAssignmentName')]"
-          },
-          "dcrResourceId": {
-            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]"
+            "value": "[parameters('changeTrackingVMPolicyAssignmentName')]"
           },
           "managedIdentityResourceId": {
             "value": "[variables('managedIdentityId')]"
@@ -574,8 +515,8 @@
           "location": {
             "value": "[parameters('location')]"
           },
-          "deploymentName": {
-            "value": "[parameters('deploymentName')]"
+          "dcrResourceId": {
+            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]"
           }
         },
         "template": {
@@ -585,21 +526,18 @@
             "policyAssignmentName": {
               "type": "string"
             },
-            "dcrResourceId": {
-              "type": "string"
-            },
             "managedIdentityResourceId": {
               "type": "string"
             },
             "location": {
               "type": "string"
             },
-            "deploymentName": {
+            "dcrResourceId": {
               "type": "string"
             }
           },
           "variables": {
-            "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/924bfe3a-762f-40e7-86dd-5c8b95eb09e6"
+            "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/ad1eeff9-20d7-4c82-a04e-903acab0bfc1"
           },
           "resources": [
             {
@@ -614,36 +552,27 @@
                 }
               },
               "properties": {
-                "displayName": "[format('Enable Azure Monitor for Azure VMs - {0}', parameters('policyAssignmentName'))]",
-                "description": "Automatically configures Windows and Linux Azure VMs with Azure Monitor Agent using user-assigned managed identity and associates with unified Data Collection Rule",
+                "displayName": "[format('Configure Windows VMs for ChangeTracking - {0}', parameters('policyAssignmentName'))]",
+                "description": "Automatically installs ChangeTracking extension on Windows Azure VMs and associates with DCR",
                 "enforcementMode": "Default",
                 "policyDefinitionId": "[variables('policyDefinitionId')]",
                 "parameters": {
+                  "effect": {
+                    "value": "DeployIfNotExists"
+                  },
                   "bringYourOwnUserAssignedManagedIdentity": {
                     "value": true
                   },
-                  "scopeToSupportedImages": {
-                    "value": false
+                  "userAssignedManagedIdentityResourceId": {
+                    "value": "[parameters('managedIdentityResourceId')]"
                   },
                   "dcrResourceId": {
                     "value": "[parameters('dcrResourceId')]"
-                  },
-                  "restrictBringYourOwnUserAssignedIdentityToSubscription": {
-                    "value": false
-                  },
-                  "userAssignedIdentityResourceId": {
-                    "value": "[parameters('managedIdentityResourceId')]"
-                  },
-                  "userAssignedManagedIdentityResourceGroup": {
-                    "value": "[split(parameters('managedIdentityResourceId'), '/')[4]]"
-                  },
-                  "userAssignedManagedIdentityName": {
-                    "value": "[split(parameters('managedIdentityResourceId'), '/')[8]]"
                   }
                 },
                 "nonComplianceMessages": [
                   {
-                    "message": "Azure VMs must have Azure Monitor Agent installed with user-assigned managed identity and configured with the unified Data Collection Rule"
+                    "message": "Windows Azure VMs must have ChangeTracking extension and DCR association"
                   }
                 ]
               }
@@ -658,42 +587,16 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
         "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
       ]
     },
     {
-      "condition": "[parameters('enableAzureVMPolicy')]",
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2020-10-01",
-      "name": "[format('remediation-azure-vms-{0}', parameters('deploymentName'))]",
-      "location": "[parameters('location')]",
-      "kind": "AzurePowerShell",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', variables('managedIdentityId'))]": {}
-        }
-      },
-      "properties": {
-        "azPowerShellVersion": "10.0",
-        "retentionInterval": "PT1H",
-        "timeout": "PT30M",
-        "cleanupPreference": "OnSuccess",
-        "arguments": "[format('-PolicyAssignmentId \"{0}\"', if(parameters('enableAzureVMPolicy'), reference(format('policyAssignment-azure-vms-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, ''))]",
-        "scriptContent": "param([string]$PolicyAssignmentId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"POLICY REMEDIATION - Azure VMs\"\nWrite-Host \"========================================\"\nWrite-Host \"Policy Assignment ID: $PolicyAssignmentId\"\nWrite-Host \"\"\n\nif ([string]::IsNullOrWhiteSpace($PolicyAssignmentId)) {\n    Write-Host \"No policy assignment ID provided\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Skipped'\n    exit 0\n}\n\n# Wait for policy to propagate\nWrite-Host \"Waiting 90 seconds for policy propagation...\"\nStart-Sleep -Seconds 90\n\n$remediations = @()\n$successCount = 0\n$failCount = 0\n\ntry {\n    # Get policy assignment details\n    $policyAssignment = Get-AzPolicyAssignment -Id $PolicyAssignmentId -ErrorAction Stop\n    \n    Write-Host \"Policy Assignment: $($policyAssignment.Name)\"\n    Write-Host \"Scope: $($policyAssignment.Properties.Scope)\"\n    Write-Host \"\"\n    \n    # Define all policy definition reference IDs to remediate\n    $policiesToRemediate = @(\n        @{ Name = \"Managed Identity Assignment\"; ReferenceId = \"AddUserAssignedManagedIdentity_VM\" },\n        @{ Name = \"Windows AMA Installation\"; ReferenceId = \"DeployAzureMonitoringAgentWindows\" },\n        @{ Name = \"Windows DCR Association\"; ReferenceId = \"DataCollectionRuleAssociation_Windows\" },\n        @{ Name = \"Linux AMA Installation\"; ReferenceId = \"DeployAzureMonitoringAgentLinux\" },\n        @{ Name = \"Linux DCR Association\"; ReferenceId = \"DataCollectionRuleAssociation_Linux\" }\n    )\n    \n    $policyNumber = 1\n    $totalPolicies = $policiesToRemediate.Count\n    \n    foreach ($policy in $policiesToRemediate) {\n        Write-Host \"[$policyNumber/$totalPolicies] Creating remediation for: $($policy.Name)\" -ForegroundColor Cyan\n        \n        try {\n            $remediationName = \"remediate-$($policy.ReferenceId.ToLower())-$(Get-Date -Format 'yyyyMMddHHmmss')\"\n            \n            $remediation = Start-AzPolicyRemediation `\n                -Name $remediationName `\n                -PolicyAssignmentId $PolicyAssignmentId `\n                -PolicyDefinitionReferenceId $policy.ReferenceId `\n                -ResourceDiscoveryMode ReEvaluateCompliance `\n                -ErrorAction Stop\n            \n            Write-Host \"  ✓ SUCCESS: $($remediation.Id)\" -ForegroundColor Green\n            $successCount++\n            \n            $remediations += @{ \n                Name = $policy.Name\n                ReferenceId = $policy.ReferenceId\n                RemediationId = $remediation.Id\n                Status = \"Created\" \n            }\n        }\n        catch {\n            Write-Host \"  ✗ FAILED: $($_.Exception.Message)\" -ForegroundColor Red\n            $failCount++\n            \n            $remediations += @{ \n                Name = $policy.Name\n                ReferenceId = $policy.ReferenceId\n                Error = $_.Exception.Message\n                Status = \"Failed\" \n            }\n        }\n        \n        Write-Host \"\"\n        $policyNumber++\n    }\n    \n    Write-Host \"========================================\"\n    Write-Host \"REMEDIATION SUMMARY\"\n    Write-Host \"========================================\"\n    Write-Host \"Total Policies: $totalPolicies\"\n    Write-Host \"✓ Successful: $successCount\" -ForegroundColor Green\n    if ($failCount -gt 0) {\n        Write-Host \"✗ Failed: $failCount\" -ForegroundColor Red\n    }\n    Write-Host \"========================================\"\n    Write-Host \"\"\n    \n    if ($successCount -gt 0) {\n        Write-Host \"Remediation tasks are running in the background\" -ForegroundColor Cyan\n        Write-Host \"Check Azure Portal > Policy > Compliance for progress\" -ForegroundColor Cyan\n        Write-Host \"Azure VMs will be configured automatically within 15-30 minutes\" -ForegroundColor Cyan\n    }\n    \n    if ($failCount -gt 0) {\n        Write-Host \"\"\n        Write-Host \"Some remediation tasks failed. You can create them manually:\" -ForegroundColor Yellow\n        Write-Host \"  1. Go to Azure Portal > Policy > Compliance\"\n        Write-Host \"  2. Select the policy assignment\"\n        Write-Host \"  3. Click 'Create remediation task' for failed policies\"\n    }\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['remediations'] = $remediations | ConvertTo-Json -Compress\n    $DeploymentScriptOutputs['totalPolicies'] = $totalPolicies\n    $DeploymentScriptOutputs['successCount'] = $successCount\n    $DeploymentScriptOutputs['failCount'] = $failCount\n    $DeploymentScriptOutputs['status'] = 'Completed'\n}\ncatch {\n    Write-Host \"========================================\"\n    Write-Host \"ERROR\"\n    Write-Host \"========================================\"\n    Write-Host $_.Exception.Message -ForegroundColor Red\n    Write-Host \"\"\n    Write-Host \"You can create remediation tasks manually from Azure Portal\" -ForegroundColor Yellow\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Failed'\n    $DeploymentScriptOutputs['error'] = $_.Exception.Message\n}\n"
-      },
-      "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-azure-vms-{0}', parameters('deploymentName')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
-      ]
-    },
-    {
-      "condition": "[parameters('enableArcPolicy')]",
+      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc'))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "[format('policyAssignment-arc-servers-{0}', parameters('deploymentName'))]",
+      "name": "[format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName'))]",
       "subscriptionId": "[subscription().subscriptionId]",
       "location": "[parameters('location')]",
       "properties": {
@@ -703,22 +606,13 @@
         },
         "parameters": {
           "policyAssignmentName": {
-            "value": "[parameters('arcPolicyAssignmentName')]"
-          },
-          "dcrResourceId": {
-            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]"
-          },
-          "managedIdentityResourceId": {
-            "value": "[variables('managedIdentityId')]"
+            "value": "[parameters('changeTrackingArcPolicyAssignmentName')]"
           },
           "location": {
             "value": "[parameters('location')]"
           },
-          "deploymentName": {
-            "value": "[parameters('deploymentName')]"
-          },
-          "enableProcessesAndDependencies": {
-            "value": "[parameters('enableProcessesAndDependencies')]"
+          "dcrResourceId": {
+            "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]"
           }
         },
         "template": {
@@ -728,24 +622,15 @@
             "policyAssignmentName": {
               "type": "string"
             },
-            "dcrResourceId": {
-              "type": "string"
-            },
-            "managedIdentityResourceId": {
-              "type": "string"
-            },
             "location": {
               "type": "string"
             },
-            "deploymentName": {
+            "dcrResourceId": {
               "type": "string"
-            },
-            "enableProcessesAndDependencies": {
-              "type": "bool"
             }
           },
           "variables": {
-            "policyDefinitionId": "/providers/Microsoft.Authorization/policySetDefinitions/2b00397d-c309-49c4-aa5a-f0b2c5bc6321"
+            "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/4bb303db-d051-4099-95d2-e3e1428a4cd5"
           },
           "resources": [
             {
@@ -754,20 +639,14 @@
               "name": "[parameters('policyAssignmentName')]",
               "location": "[parameters('location')]",
               "identity": {
-                "type": "UserAssigned",
-                "userAssignedIdentities": {
-                  "[parameters('managedIdentityResourceId')]": {}
-                }
+                "type": "SystemAssigned"
               },
               "properties": {
-                "displayName": "[format('Enable Azure Monitor for Hybrid VMs with AMA - {0}', parameters('policyAssignmentName'))]",
-                "description": "Automatically configures Windows and Linux Arc-enabled servers with Azure Monitor Agent using user-assigned managed identity and associates with unified Data Collection Rule",
+                "displayName": "[format('Configure ChangeTracking for Windows Arc machines - {0}', parameters('policyAssignmentName'))]",
+                "description": "Automatically deploys ChangeTracking extension on Windows Arc servers and associates with DCR",
                 "enforcementMode": "Default",
                 "policyDefinitionId": "[variables('policyDefinitionId')]",
                 "parameters": {
-                  "enableProcessesAndDependencies": {
-                    "value": "[parameters('enableProcessesAndDependencies')]"
-                  },
                   "effect": {
                     "value": "DeployIfNotExists"
                   },
@@ -777,10 +656,23 @@
                 },
                 "nonComplianceMessages": [
                   {
-                    "message": "Arc-enabled servers must have Azure Monitor Agent installed and configured with the unified Data Collection Rule"
+                    "message": "Windows Arc servers must have ChangeTracking extension and DCR association"
                   }
                 ]
               }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ChangeTrackingArcContributor')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
+              ]
             }
           ],
           "outputs": {
@@ -792,283 +684,9 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
+        "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
         "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-      ]
-    },
-    {
-      "condition": "[parameters('enableArcPolicy')]",
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2020-10-01",
-      "name": "[format('remediation-arc-servers-{0}', parameters('deploymentName'))]",
-      "location": "[parameters('location')]",
-      "kind": "AzurePowerShell",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', variables('managedIdentityId'))]": {}
-        }
-      },
-      "properties": {
-        "azPowerShellVersion": "10.0",
-        "retentionInterval": "PT1H",
-        "timeout": "PT30M",
-        "cleanupPreference": "OnSuccess",
-        "arguments": "[format('-PolicyAssignmentId \"{0}\"', if(parameters('enableArcPolicy'), reference(format('policyAssignment-arc-servers-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, ''))]",
-        "scriptContent": "param([string]$PolicyAssignmentId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"POLICY REMEDIATION - Arc Servers\"\nWrite-Host \"========================================\"\nWrite-Host \"Policy Assignment ID: $PolicyAssignmentId\"\nWrite-Host \"\"\n\nif ([string]::IsNullOrWhiteSpace($PolicyAssignmentId)) {\n    Write-Host \"No policy assignment ID provided\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Skipped'\n    exit 0\n}\n\n# Wait for policy to propagate\nWrite-Host \"Waiting 90 seconds for policy propagation...\"\nStart-Sleep -Seconds 90\n\n$remediations = @()\n$successCount = 0\n$failCount = 0\n\ntry {\n    # Get policy assignment details\n    $policyAssignment = Get-AzPolicyAssignment -Id $PolicyAssignmentId -ErrorAction Stop\n    \n    Write-Host \"Policy Assignment: $($policyAssignment.Name)\"\n    Write-Host \"Scope: $($policyAssignment.Properties.Scope)\"\n    Write-Host \"\"\n    \n    # Get all policy definitions in the initiative\n    Write-Host \"Retrieving policy definitions...\" -ForegroundColor Cyan\n    $policySet = Get-AzPolicySetDefinition -Id $policyAssignment.Properties.PolicyDefinitionId -ErrorAction Stop\n    \n    $totalPolicies = $policySet.Properties.PolicyDefinitions.Count\n    Write-Host \"Found $totalPolicies policies in the initiative\"\n    Write-Host \"\"\n    \n    $policyNumber = 1\n    \n    foreach ($policyDef in $policySet.Properties.PolicyDefinitions) {\n        $policyRefId = $policyDef.policyDefinitionReferenceId\n        $policyName = if ($policyDef.policyDefinitionId -match '/([^/]+)$') { $matches[1] } else { $policyRefId }\n        \n        Write-Host \"[$policyNumber/$totalPolicies] Creating remediation for: $policyName\" -ForegroundColor Cyan\n        \n        try {\n            $remediationName = \"remediate-arc-$($policyRefId.ToLower() -replace '[^a-z0-9-]', '-')-$(Get-Date -Format 'yyyyMMddHHmmss')\"\n            \n            $remediation = Start-AzPolicyRemediation `\n                -Name $remediationName `\n                -PolicyAssignmentId $PolicyAssignmentId `\n                -PolicyDefinitionReferenceId $policyRefId `\n                -ResourceDiscoveryMode ReEvaluateCompliance `\n                -ErrorAction Stop\n            \n            Write-Host \"  ✓ SUCCESS: $($remediation.Id)\" -ForegroundColor Green\n            $successCount++\n            \n            $remediations += @{ \n                Name = $policyName\n                ReferenceId = $policyRefId\n                RemediationId = $remediation.Id\n                Status = \"Created\" \n            }\n        }\n        catch {\n            Write-Host \"  ✗ FAILED: $($_.Exception.Message)\" -ForegroundColor Red\n            $failCount++\n            \n            $remediations += @{ \n                Name = $policyName\n                ReferenceId = $policyRefId\n                Error = $_.Exception.Message\n                Status = \"Failed\" \n            }\n        }\n        \n        Write-Host \"\"\n        $policyNumber++\n    }\n    \n    Write-Host \"========================================\"\n    Write-Host \"REMEDIATION SUMMARY\"\n    Write-Host \"========================================\"\n    Write-Host \"Total Policies: $totalPolicies\"\n    Write-Host \"✓ Successful: $successCount\" -ForegroundColor Green\n    if ($failCount -gt 0) {\n        Write-Host \"✗ Failed: $failCount\" -ForegroundColor Red\n    }\n    Write-Host \"========================================\"\n    Write-Host \"\"\n    \n    if ($successCount -gt 0) {\n        Write-Host \"Remediation tasks are running in the background\" -ForegroundColor Cyan\n        Write-Host \"Check Azure Portal > Policy > Compliance for progress\" -ForegroundColor Cyan\n        Write-Host \"Arc servers will be configured automatically within 15-30 minutes\" -ForegroundColor Cyan\n    }\n    \n    if ($failCount -gt 0) {\n        Write-Host \"\"\n        Write-Host \"Some remediation tasks failed. You can create them manually:\" -ForegroundColor Yellow\n        Write-Host \"  1. Go to Azure Portal > Policy > Compliance\"\n        Write-Host \"  2. Select the policy assignment\"\n        Write-Host \"  3. Click 'Create remediation task' for failed policies\"\n    }\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['remediations'] = $remediations | ConvertTo-Json -Compress\n    $DeploymentScriptOutputs['totalPolicies'] = $totalPolicies\n    $DeploymentScriptOutputs['successCount'] = $successCount\n    $DeploymentScriptOutputs['failCount'] = $failCount\n    $DeploymentScriptOutputs['status'] = 'Completed'\n}\ncatch {\n    Write-Host \"========================================\"\n    Write-Host \"ERROR\"\n    Write-Host \"========================================\"\n    Write-Host $_.Exception.Message -ForegroundColor Red\n    Write-Host \"\"\n    Write-Host \"You can create remediation tasks manually from Azure Portal\" -ForegroundColor Yellow\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Failed'\n    $DeploymentScriptOutputs['error'] = $_.Exception.Message\n}\n"
-      },
-      "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-arc-servers-{0}', parameters('deploymentName')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
-      ]
-    },
-    {
-  "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
-  "type": "Microsoft.Resources/deployments",
-  "apiVersion": "2022-09-01",
-  "name": "[format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName'))]",
-  "subscriptionId": "[subscription().subscriptionId]",
-  "location": "[parameters('location')]",
-  "properties": {
-    "mode": "Incremental",
-    "expressionEvaluationOptions": {
-      "scope": "inner"
-    },
-    "parameters": {
-      "policyAssignmentName": {
-        "value": "[parameters('changeTrackingVMPolicyAssignmentName')]"
-      },
-      "managedIdentityResourceId": {
-        "value": "[variables('managedIdentityId')]"
-      },
-      "location": {
-        "value": "[parameters('location')]"
-      },
-      "dcrResourceId": {
-        "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]"
-      }
-    },
-    "template": {
-      "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-      "contentVersion": "1.0.0.0",
-      "parameters": {
-        "policyAssignmentName": {
-          "type": "string"
-        },
-        "managedIdentityResourceId": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        },
-        "dcrResourceId": {
-          "type": "string"
-        }
-      },
-      "variables": {
-        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/ad1eeff9-20d7-4c82-a04e-903acab0bfc1"
-      },
-      "resources": [
-        {
-          "type": "Microsoft.Authorization/policyAssignments",
-          "apiVersion": "2023-04-01",
-          "name": "[parameters('policyAssignmentName')]",
-          "location": "[parameters('location')]",
-          "identity": {
-            "type": "UserAssigned",
-            "userAssignedIdentities": {
-              "[parameters('managedIdentityResourceId')]": {}
-            }
-          },
-          "properties": {
-            "displayName": "[format('Configure Windows VMs for ChangeTracking - {0}', parameters('policyAssignmentName'))]",
-            "description": "Automatically installs ChangeTracking extension on Windows Azure VMs and associates with DCR",
-            "enforcementMode": "Default",
-            "policyDefinitionId": "[variables('policyDefinitionId')]",
-            "parameters": {
-              "effect": {
-                "value": "DeployIfNotExists"
-              },
-              "bringYourOwnUserAssignedManagedIdentity": {
-                "value": true
-              },
-              "userAssignedManagedIdentityResourceId": {
-                "value": "[parameters('managedIdentityResourceId')]"
-              },
-              "dcrResourceId": {
-                "value": "[parameters('dcrResourceId')]"
-              }
-            },
-            "nonComplianceMessages": [
-              {
-                "message": "Windows Azure VMs must have ChangeTracking extension and DCR association"
-              }
-            ]
-          }
-        }
-      ],
-      "outputs": {
-        "policyAssignmentId": {
-          "type": "string",
-          "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-        }
-      }
-    }
-  },
-  "dependsOn": [
-    "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]",
-    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-    "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-  ]
-},
-    {
-  "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc'))]",
-  "type": "Microsoft.Resources/deployments",
-  "apiVersion": "2022-09-01",
-  "name": "[format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName'))]",
-  "subscriptionId": "[subscription().subscriptionId]",
-  "location": "[parameters('location')]",
-  "properties": {
-    "mode": "Incremental",
-    "expressionEvaluationOptions": {
-      "scope": "inner"
-    },
-    "parameters": {
-      "policyAssignmentName": {
-        "value": "[parameters('changeTrackingArcPolicyAssignmentName')]"
-      },
-      "location": {
-        "value": "[parameters('location')]"
-      },
-      "dcrResourceId": {
-        "value": "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]"
-      }
-    },
-    "template": {
-      "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-      "contentVersion": "1.0.0.0",
-      "parameters": {
-        "policyAssignmentName": {
-          "type": "string"
-        },
-        "location": {
-          "type": "string"
-        },
-        "dcrResourceId": {
-          "type": "string"
-        }
-      },
-      "variables": {
-        "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/4bb303db-d051-4099-95d2-e3e1428a4cd5"
-      },
-      "resources": [
-        {
-          "type": "Microsoft.Authorization/policyAssignments",
-          "apiVersion": "2023-04-01",
-          "name": "[parameters('policyAssignmentName')]",
-          "location": "[parameters('location')]",
-          "identity": {
-            "type": "SystemAssigned"
-          },
-          "properties": {
-            "displayName": "[format('Configure ChangeTracking for Windows Arc machines - {0}', parameters('policyAssignmentName'))]",
-            "description": "Automatically deploys ChangeTracking extension on Windows Arc servers and associates with DCR",
-            "enforcementMode": "Default",
-            "policyDefinitionId": "[variables('policyDefinitionId')]",
-            "parameters": {
-              "effect": {
-                "value": "DeployIfNotExists"
-              },
-              "dcrResourceId": {
-                "value": "[parameters('dcrResourceId')]"
-              }
-            },
-            "nonComplianceMessages": [
-              {
-                "message": "Windows Arc servers must have ChangeTracking extension and DCR association"
-              }
-            ]
-          }
-        },
-        {
-          "type": "Microsoft.Authorization/roleAssignments",
-          "apiVersion": "2022-04-01",
-          "name": "[guid(subscription().id, parameters('policyAssignmentName'), 'ChangeTrackingArcContributor')]",
-          "properties": {
-            "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-            "principalId": "[reference(subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName')), '2023-04-01', 'Full').identity.principalId]",
-            "principalType": "ServicePrincipal"
-          },
-          "dependsOn": [
-            "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-          ]
-        }
-      ],
-      "outputs": {
-        "policyAssignmentId": {
-          "type": "string",
-          "value": "[subscriptionResourceId('Microsoft.Authorization/policyAssignments', parameters('policyAssignmentName'))]"
-        }
-      }
-    }
-  },
-  "dependsOn": [
-    "[resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName')))]",
-    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]",
-    "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('roleAssignment-{0}', parameters('deploymentName')))]"
-  ]
-},
-    {
-      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM'))]",
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2020-10-01",
-      "name": "[format('remediation-ct-azure-vms-{0}', parameters('deploymentName'))]",
-      "location": "[parameters('location')]",
-      "kind": "AzurePowerShell",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', variables('managedIdentityId'))]": {}
-        }
-      },
-      "properties": {
-        "azPowerShellVersion": "10.0",
-        "retentionInterval": "PT1H",
-        "timeout": "PT30M",
-        "cleanupPreference": "OnSuccess",
-        "arguments": "[format('-PolicyAssignmentId \"{0}\"', if(and(parameters('enableChangeTracking'), parameters('enableChangeTrackingAzureVM')), reference(format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, ''))]",
-        "scriptContent": "param([string]$PolicyAssignmentId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"POLICY REMEDIATION - Change Tracking Azure VMs\"\nWrite-Host \"========================================\"\nWrite-Host \"Policy Assignment ID: $PolicyAssignmentId\"\nWrite-Host \"\"\n\nif ([string]::IsNullOrWhiteSpace($PolicyAssignmentId)) {\n    Write-Host \"No policy assignment ID provided\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Skipped'\n    exit 0\n}\n\n# Wait for policy to propagate\nWrite-Host \"Waiting 90 seconds for policy propagation...\"\nStart-Sleep -Seconds 90\n\ntry {\n    $policyAssignment = Get-AzPolicyAssignment -Id $PolicyAssignmentId -ErrorAction Stop\n    \n    Write-Host \"Policy Assignment: $($policyAssignment.Name)\"\n    Write-Host \"Scope: $($policyAssignment.Properties.Scope)\"\n    Write-Host \"\"\n    \n    Write-Host \"Creating remediation task for Change Tracking Azure VMs...\" -ForegroundColor Cyan\n    \n    $remediationName = \"remediate-ct-vm-$(Get-Date -Format 'yyyyMMddHHmmss')\"\n    \n    $remediation = Start-AzPolicyRemediation `\n        -Name $remediationName `\n        -PolicyAssignmentId $PolicyAssignmentId `\n        -ResourceDiscoveryMode ReEvaluateCompliance `\n        -ErrorAction Stop\n    \n    Write-Host \"✓ SUCCESS: $($remediation.Id)\" -ForegroundColor Green\n    Write-Host \"\"\n    Write-Host \"Remediation task is running in the background\" -ForegroundColor Cyan\n    Write-Host \"Check Azure Portal > Policy > Compliance for progress\" -ForegroundColor Cyan\n    Write-Host \"Azure VMs will have Change Tracking configured within 15-30 minutes\" -ForegroundColor Cyan\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['remediationId'] = $remediation.Id\n    $DeploymentScriptOutputs['status'] = 'Completed'\n}\ncatch {\n    Write-Host \"========================================\"\n    Write-Host \"ERROR\"\n    Write-Host \"========================================\"\n    Write-Host $_.Exception.Message -ForegroundColor Red\n    Write-Host \"\"\n    Write-Host \"You can create remediation task manually from Azure Portal\" -ForegroundColor Yellow\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Failed'\n    $DeploymentScriptOutputs['error'] = $_.Exception.Message\n}\n"
-      },
-      "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-ct-azure-vms-{0}', parameters('deploymentName')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
-      ]
-    },
-    {
-      "condition": "[and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc'))]",
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2020-10-01",
-      "name": "[format('remediation-ct-arc-servers-{0}', parameters('deploymentName'))]",
-      "location": "[parameters('location')]",
-      "kind": "AzurePowerShell",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', variables('managedIdentityId'))]": {}
-        }
-      },
-      "properties": {
-        "azPowerShellVersion": "10.0",
-        "retentionInterval": "PT1H",
-        "timeout": "PT30M",
-        "cleanupPreference": "OnSuccess",
-        "arguments": "[format('-PolicyAssignmentId \"{0}\"', if(and(parameters('enableChangeTracking'), parameters('enableChangeTrackingArc')), reference(format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, ''))]",
-        "scriptContent": "param([string]$PolicyAssignmentId)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"POLICY REMEDIATION - Change Tracking Arc Servers\"\nWrite-Host \"========================================\"\nWrite-Host \"Policy Assignment ID: $PolicyAssignmentId\"\nWrite-Host \"\"\n\nif ([string]::IsNullOrWhiteSpace($PolicyAssignmentId)) {\n    Write-Host \"No policy assignment ID provided\" -ForegroundColor Yellow\n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Skipped'\n    exit 0\n}\n\n# Wait for policy to propagate\nWrite-Host \"Waiting 90 seconds for policy propagation...\"\nStart-Sleep -Seconds 90\n\ntry {\n    $policyAssignment = Get-AzPolicyAssignment -Id $PolicyAssignmentId -ErrorAction Stop\n    \n    Write-Host \"Policy Assignment: $($policyAssignment.Name)\"\n    Write-Host \"Scope: $($policyAssignment.Properties.Scope)\"\n    Write-Host \"\"\n    \n    Write-Host \"Creating remediation task for Change Tracking Arc Servers...\" -ForegroundColor Cyan\n    \n    $remediationName = \"remediate-ct-arc-$(Get-Date -Format 'yyyyMMddHHmmss')\"\n    \n    $remediation = Start-AzPolicyRemediation `\n        -Name $remediationName `\n        -PolicyAssignmentId $PolicyAssignmentId `\n        -ResourceDiscoveryMode ReEvaluateCompliance `\n        -ErrorAction Stop\n    \n    Write-Host \"✓ SUCCESS: $($remediation.Id)\" -ForegroundColor Green\n    Write-Host \"\"\n    Write-Host \"Remediation task is running in the background\" -ForegroundColor Cyan\n    Write-Host \"Check Azure Portal > Policy > Compliance for progress\" -ForegroundColor Cyan\n    Write-Host \"Arc servers will have Change Tracking configured within 15-30 minutes\" -ForegroundColor Cyan\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['remediationId'] = $remediation.Id\n    $DeploymentScriptOutputs['status'] = 'Completed'\n}\ncatch {\n    Write-Host \"========================================\"\n    Write-Host \"ERROR\"\n    Write-Host \"========================================\"\n    Write-Host $_.Exception.Message -ForegroundColor Red\n    Write-Host \"\"\n    Write-Host \"You can create remediation task manually from Azure Portal\" -ForegroundColor Yellow\n    \n    $DeploymentScriptOutputs = @{}\n    $DeploymentScriptOutputs['status'] = 'Failed'\n    $DeploymentScriptOutputs['error'] = $_.Exception.Message\n}\n"
-      },
-      "dependsOn": [
-        "[extensionResourceId(format('/subscriptions/{0}', subscription().subscriptionId), 'Microsoft.Resources/deployments', format('policyAssignment-ct-arc-servers-{0}', parameters('deploymentName')))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
       ]
     },
     {
@@ -1402,20 +1020,12 @@
         "description": "Resource ID of the unified Data Collection Rule"
       }
     },
-    "azureVMPolicyAssignmentId": {
+    "dcrChangeTrackingId": {
       "type": "string",
-      "value": "[if(parameters('enableAzureVMPolicy'), reference(format('policyAssignment-azure-vms-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, '')]",
-      "condition": "[parameters('enableAzureVMPolicy')]",
+      "value": "[if(parameters('enableChangeTracking'), resourceId('Microsoft.Insights/dataCollectionRules', format('dcr-{0}-changetracking', parameters('deploymentName'))), '')]",
+      "condition": "[parameters('enableChangeTracking')]",
       "metadata": {
-        "description": "Resource ID of the Azure VM Policy Assignment (if enabled)"
-      }
-    },
-    "arcPolicyAssignmentId": {
-      "type": "string",
-      "value": "[if(parameters('enableArcPolicy'), reference(format('policyAssignment-arc-servers-{0}', parameters('deploymentName'))).outputs.policyAssignmentId.value, '')]",
-      "condition": "[parameters('enableArcPolicy')]",
-      "metadata": {
-        "description": "Resource ID of the Arc Policy Assignment (if enabled)"
+        "description": "Resource ID of the Change Tracking Data Collection Rule (if enabled)"
       }
     },
     "changeTrackingVMPolicyAssignmentId": {
