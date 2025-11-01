@@ -353,7 +353,7 @@
                 "max": 100,
                 "label": "CPU Threshold",
                 "subLabel": "%",
-                "defaultValue": 95,
+                "defaultValue": 85,
                 "toolTip": "Alert when CPU usage exceeds this percentage",
                 "constraints": {
                   "required": true
@@ -379,7 +379,7 @@
                 "max": 100,
                 "label": "Disk Threshold",
                 "subLabel": "%",
-                "defaultValue": 95,
+                "defaultValue": 85,
                 "toolTip": "Alert when Disk usage exceeds this percentage",
                 "constraints": {
                   "required": true
@@ -452,68 +452,6 @@
         "name": "automation",
         "label": "Automation",
         "elements": [
-          {
-            "name": "changeTrackingSection",
-            "type": "Microsoft.Common.Section",
-            "label": "Change Tracking & Inventory",
-            "elements": [
-              {
-                "name": "enableChangeTracking",
-                "type": "Microsoft.Common.CheckBox",
-                "label": "Enable Change Tracking & Inventory",
-                "defaultValue": false,
-                "toolTip": "Enable Change Tracking and Inventory to track changes to files, registry, software, and services on VMs and Arc servers"
-              },
-              {
-                "name": "changeTrackingInfo",
-                "type": "Microsoft.Common.InfoBox",
-                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]",
-                "options": {
-                  "icon": "Info",
-                  "text": "Change Tracking & Inventory will collect data about:\n• Software inventory (installed applications)\n• File changes\n• Windows Registry changes (Windows only)\n• Windows Services\n• Linux Daemons\n\nThis data is REQUIRED for the Service monitoring alerts (AD Connect, Domain Controllers).\n\nA separate Data Collection Rule will be created specifically for Change Tracking.",
-                  "uri": "https://learn.microsoft.com/en-us/azure/automation/change-tracking/overview-monitoring-agent"
-                }
-              },
-              {
-                "name": "changeTrackingDcrName",
-                "type": "Microsoft.Common.TextBox",
-                "label": "Change Tracking DCR Name",
-                "defaultValue": "[concat('dcr-', basics('deploymentName'), '-changetracking')]",
-                "toolTip": "Name for the Change Tracking Data Collection Rule",
-                "constraints": {
-                  "required": true,
-                  "regex": "^[a-zA-Z0-9-]{3,64}$",
-                  "validationMessage": "Alphanumeric and hyphens. Length 3-64."
-                },
-                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
-              },
-              {
-                "name": "enableChangeTrackingAzureVM",
-                "type": "Microsoft.Common.CheckBox",
-                "label": "Enable Change Tracking for Azure VMs",
-                "defaultValue": true,
-                "toolTip": "Install Change Tracking extension on Azure VMs",
-                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
-              },
-              {
-                "name": "enableChangeTrackingArc",
-                "type": "Microsoft.Common.CheckBox",
-                "label": "Enable Change Tracking for Arc Servers",
-                "defaultValue": true,
-                "toolTip": "Install Change Tracking extension on Arc-enabled servers",
-                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]"
-              },
-              {
-                "name": "changeTrackingWarning",
-                "type": "Microsoft.Common.InfoBox",
-                "visible": "[steps('automation').changeTrackingSection.enableChangeTracking]",
-                "options": {
-                  "icon": "Warning",
-                  "text": "Service alerts (AD Connect, Domain Controllers) will ONLY be created if Change Tracking is enabled, as they require the ConfigurationData table."
-                }
-              }
-            ]
-          },
           {
             "name": "azureVMPolicySection",
             "type": "Microsoft.Common.Section",
@@ -635,10 +573,6 @@
       "selectedArcServerIds": "[if(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'selected'), split(replace(steps('infrastructure').arcMonitoringSection.selectedArcResourceIds, ' ', ''), ','), parse('[]'))]",
       "dcrNameWindows": "[if(or(not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none')), not(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'none'))), steps('infrastructure').dcrSection.dcrName, concat('dcr-', basics('deploymentName'), '-unified'))]",
       "dcrNameLinux": "[if(or(not(equals(steps('infrastructure').vmMonitoringSection.monitorVMs, 'none')), not(equals(steps('infrastructure').arcMonitoringSection.monitorArcServers, 'none'))), steps('infrastructure').dcrSection.dcrName, concat('dcr-', basics('deploymentName'), '-unified'))]",
-      "enableChangeTracking": "[steps('automation').changeTrackingSection.enableChangeTracking]",
-      "changeTrackingDcrName": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.changeTrackingDcrName, concat('dcr-', basics('deploymentName'), '-changetracking'))]",
-      "enableChangeTrackingAzureVM": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.enableChangeTrackingAzureVM, false)]",
-      "enableChangeTrackingArc": "[if(steps('automation').changeTrackingSection.enableChangeTracking, steps('automation').changeTrackingSection.enableChangeTrackingArc, false)]",
       "enableAzureVMPolicy": "[steps('automation').azureVMPolicySection.enableAzureVMPolicy]",
       "azureVMPolicyAssignmentName": "[if(steps('automation').azureVMPolicySection.enableAzureVMPolicy, steps('automation').azureVMPolicySection.policyAssignmentName, concat('ama-vm-monitoring-', basics('deploymentName')))]",
       "enableArcPolicy": "[steps('automation').arcPolicySection.enableArcPolicy]",
