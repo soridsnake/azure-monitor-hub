@@ -270,82 +270,24 @@
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.ManagedIdentity/userAssignedIdentities'), parameters('tagsByResource')['Microsoft.ManagedIdentity/userAssignedIdentities'], json('{}'))]"
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
       "name": "[format('roleAssignment-{0}', parameters('deploymentName'))]",
-      "subscriptionId": "[subscription().subscriptionId]",
       "location": "[parameters('location')]",
-      "properties": {
-        "mode": "Incremental",
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "parameters": {
-          "principalId": {
-            "value": "[if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId)]"
-          },
-          "deploymentName": {
-            "value": "[parameters('deploymentName')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "principalId": {
-              "type": "string"
-            },
-            "deploymentName": {
-              "type": "string"
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), parameters('deploymentName'), 'Contributor')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-                "principalId": "[parameters('principalId')]",
-                "principalType": "ServicePrincipal",
-                "description": "Allows Managed Identity to deploy monitoring resources and configure VMs and Arc servers"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), parameters('deploymentName'), 'ManagedIdentityOperator')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
-                "principalId": "[parameters('principalId')]",
-                "principalType": "ServicePrincipal",
-                "description": "Allows Managed Identity to assign itself to VMs and Arc servers"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), parameters('deploymentName'), 'VirtualMachineContributor')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')]",
-                "principalId": "[parameters('principalId')]",
-                "principalType": "ServicePrincipal",
-                "description": "Allows Managed Identity to manage VM extensions"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), parameters('deploymentName'), 'AzureConnectedMachineResourceAdministrator')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'cd570a14-e51a-42ad-bac8-bafd67325302')]",
-                "principalId": "[parameters('principalId')]",
-                "principalType": "ServicePrincipal",
-                "description": "Allows Managed Identity to manage Arc-enabled servers"
-              }
-            }
-          ]
+      "kind": "AzurePowerShell",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', variables('managedIdentityId'))]": {}
         }
+      },
+      "properties": {
+        "azPowerShellVersion": "10.0",
+        "retentionInterval": "PT1H",
+        "timeout": "PT10M",
+        "cleanupPreference": "OnSuccess",
+        "arguments": "[format('-PrincipalId \"{0}\" -SubscriptionId \"{1}\" -DeploymentName \"{2}\"', if(parameters('useExistingManagedIdentity'), reference(parameters('existingManagedIdentityId'), '2023-01-31').principalId, reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), '2023-01-31').principalId), subscription().subscriptionId, parameters('deploymentName'))]",
+        "scriptContent": "param(\n    [string]$PrincipalId,\n    [string]$SubscriptionId,\n    [string]$DeploymentName\n)\n\n$ErrorActionPreference = 'Stop'\n\nWrite-Host \"========================================\"\nWrite-Host \"ROLE ASSIGNMENT SETUP\"\nWrite-Host \"========================================\"\nWrite-Host \"Principal ID: $PrincipalId\"\nWrite-Host \"Subscription ID: $SubscriptionId\"\nWrite-Host \"\"\n\n# Define roles to assign\n$roles = @(\n    @{ Name = \"Contributor\"; Id = \"b24988ac-6180-42a0-ab88-20f7382dd24c\"; Description = \"Allows Managed Identity to deploy monitoring resources\" },\n    @{ Name = \"Managed Identity Operator\"; Id = \"f1a07417-d97a-45cb-824c-7a7467783830\"; Description = \"Allows Managed Identity to assign itself to VMs\" },\n    @{ Name = \"Virtual Machine Contributor\"; Id = \"9980e02c-c2be-4d73-94e8-173b1dc7cf3c\"; Description = \"Allows Managed Identity to manage VM extensions\" },\n    @{ Name = \"Azure Connected Machine Resource Administrator\"; Id = \"cd570a14-e51a-42ad-bac8-bafd67325302\"; Description = \"Allows Managed Identity to manage Arc servers\" }\n)\n\n$assignedCount = 0\n$skippedCount = 0\n$failedCount = 0\n\nforeach ($role in $roles) {\n    Write-Host \"Processing role: $($role.Name)\" -ForegroundColor Cyan\n    \n    try {\n        # Check if role assignment already exists\n        $existingAssignment = Get-AzRoleAssignment `\n            -ObjectId $PrincipalId `\n            -RoleDefinitionId $role.Id `\n            -Scope \"/subscriptions/$SubscriptionId\" `\n            -ErrorAction SilentlyContinue\n        \n        if ($existingAssignment) {\n            Write-Host \"  ✓ Role assignment already exists - SKIPPED\" -ForegroundColor Yellow\n            $skippedCount++\n        }\n        else {\n            Write-Host \"  Creating role assignment...\" -ForegroundColor Cyan\n            \n            $assignment = New-AzRoleAssignment `\n                -ObjectId $PrincipalId `\n                -RoleDefinitionId $role.Id `\n                -Scope \"/subscriptions/$SubscriptionId\" `\n                -Description $role.Description `\n                -ErrorAction Stop\n            \n            Write-Host \"  ✓ Role assignment created successfully\" -ForegroundColor Green\n            $assignedCount++\n        }\n    }\n    catch {\n        if ($_.Exception.Message -like \"*role assignment already exists*\") {\n            Write-Host \"  ✓ Role assignment already exists (caught exception) - SKIPPED\" -ForegroundColor Yellow\n            $skippedCount++\n        }\n        else {\n            Write-Host \"  ✗ Failed: $($_.Exception.Message)\" -ForegroundColor Red\n            $failedCount++\n        }\n    }\n    \n    Write-Host \"\"\n}\n\nWrite-Host \"========================================\"\nWrite-Host \"SUMMARY\"\nWrite-Host \"========================================\"\nWrite-Host \"Total Roles: $($roles.Count)\"\nWrite-Host \"✓ Newly Assigned: $assignedCount\" -ForegroundColor Green\nWrite-Host \"⊙ Already Existed: $skippedCount\" -ForegroundColor Yellow\nif ($failedCount -gt 0) {\n    Write-Host \"✗ Failed: $failedCount\" -ForegroundColor Red\n}\nWrite-Host \"========================================\"\nWrite-Host \"\"\n\nif (($assignedCount + $skippedCount) -eq $roles.Count) {\n    Write-Host \"All required role assignments are in place!\" -ForegroundColor Green\n}\n\n$DeploymentScriptOutputs = @{}\n$DeploymentScriptOutputs['assignedCount'] = $assignedCount\n$DeploymentScriptOutputs['skippedCount'] = $skippedCount\n$DeploymentScriptOutputs['failedCount'] = $failedCount\n$DeploymentScriptOutputs['status'] = 'Completed'\n"
       },
       "dependsOn": [
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
