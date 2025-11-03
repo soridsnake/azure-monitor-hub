@@ -763,7 +763,7 @@
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
       "properties": {
-        "displayName": "[format('High CPU Usage - {0}', parameters('deploymentName'))]",
+        "displayName": "[format('CPU Critical - {0}', parameters('deploymentName'))]",
         "description": "[format('Alert when CPU usage exceeds {0}%', parameters('cpuThreshold'))]",
         "severity": 2,
         "enabled": true,
@@ -800,7 +800,7 @@
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
       "properties": {
-        "displayName": "[format('High Memory Usage - {0}', parameters('deploymentName'))]",
+        "displayName": "[format('Ram Critical - {0}', parameters('deploymentName'))]",
         "description": "[format('Alert when Memory usage exceeds {0}%', parameters('memoryThreshold'))]",
         "severity": 2,
         "enabled": true,
@@ -837,7 +837,7 @@
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
       "properties": {
-        "displayName": "[format('Low Disk Space - {0}', parameters('deploymentName'))]",
+        "displayName": "[format('Disk Critical - {0}', parameters('deploymentName'))]",
         "description": "[format('Alert when Disk free space is below {0}%', sub(100, parameters('diskThreshold')))]",
         "severity": 2,
         "enabled": true,
@@ -874,7 +874,7 @@
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Insights/scheduledQueryRules'), parameters('tagsByResource')['Microsoft.Insights/scheduledQueryRules'], json('{}'))]",
       "properties": {
-        "displayName": "[format('Machine Heartbeat Missing - {0}', parameters('deploymentName'))]",
+        "displayName": "[format('Heartbeat - {0}', parameters('deploymentName'))]",
         "description": "Alert when machine stops sending heartbeat",
         "severity": 1,
         "enabled": true,
